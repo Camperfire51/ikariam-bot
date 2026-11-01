@@ -1,30 +1,31 @@
 # Ikariam Barbar Rotasyonu (Chrome eklentisi)
 
-## Kurulum (herkes için aynı, geliştiricinin bilgisayarı dahil)
-Bot kodu GitHub Pages'te durur (https://camperfire51.github.io/ikariam-bot/). Chrome'a sadece küçük bir yükleyici kurulur; her sayfa açılışında güncel sürüm oradan gelir.
+## Kurulum
+Bot kodu GitHub Pages'te durur (https://camperfire51.github.io/ikariam-bot/). Chrome'a sadece küçük bir yükleyici kurulur; her sayfa açılışında güncel sürüm oradan gelir. İki yükleyici var:
 
-1. Bu depodaki `loader` klasörünü (ya da `ikariam-bot-yukleyici.zip`'i açıp) bilgisayarda kalıcı bir yere koy. Klasörü silme/taşıma.
+- `ikariam-yukleyici.zip` → **ürün**: yayınlanmış sürüm. Herkes bunu kurar.
+- `ikariam-yukleyici-TEST.zip` → **test**: henüz yayınlanmamış en son kod. Sadece geliştiricinin bilgisayarı. Ekranın üstünde küçük kırmızı "TEST SÜRÜMÜ" etiketi durur.
+
+(Zip'ler depoda değil; `loader` klasöründen üretilir. TEST'te `loader.js` içinde `CHANNEL = 'test'` yazılıdır.)
+
+1. Zip'i açıp çıkan klasörü bilgisayarda kalıcı bir yere koy. Klasörü silme/taşıma.
 2. Chrome'da `chrome://extensions` adresini aç, sağ üstten **Geliştirici modu**nu aç.
 3. Eski bot eklentisi ya da eski yükleyici yüklüyse **kaldır** (ayarlar ve kayıtlar silinmez, oyunun sayfasında durur).
-4. **Paketlenmemiş öğe yükle** → `loader` klasörünü seç (içinde `manifest.json` ve `loader.js` olmalı).
+4. **Paketlenmemiş öğe yükle** → o klasörü seç (içinde `manifest.json` ve `loader.js` olmalı). Aynı Chrome'a iki yükleyiciyi birden kurma.
 5. Oyun sekmesini yenile. Sol altta bot panelleri çıkar.
 6. Ayarlar → Performans → Bellek Tasarrufu'nda `ikariam.gameforge.com` adresini "her zaman etkin tut" listesine ekle (sekme uyutulursa bot durur).
 
 Güncelleme: yeni sürüm yayınlanınca açık oyun sekmesinin üstünde **"Bot güncellemesi var"** uyarısı çıkar (10 dakikada bir bakılır). **Yenile**'ye basmak ya da sayfayı yenilemek yeterli; çalışan botlar kaldığı yerden devam eder.
 
-## Geliştirme → test → yayınlama
-İki ortam var: **ürün** (GitHub Pages, herkes) ve **test** (geliştiricinin bilgisayarındaki yerel sunucu, sadece test modu açılan tarayıcı).
+## Geliştirme → deneme → yayınlama
+1. **Değişiklik + test gönderimi:** kod `src/` altında değiştirilir, sonra `node release.js test "ne değişti"` ile test kanalına gönderilir (`beta.json` yenilenir). Sadece TEST yükleyicili bilgisayarda 1 dk içinde "Yeni test sürümü var → Yenile" çıkar.
+2. **Deneme:** geliştirici kendi oyununda oynar. Diğer herkes yayınlanmış sürümde kalır.
+3. **Yayınlama:** `YAYINLA.cmd`'ye çift tıkla ya da `node release.js yayinla "ne değişti"`. `src/` dosyaları `prod/src/` altına kopyalanır, `version.json` yenilenir; birkaç dakika içinde herkeste "güncelleme var" uyarısı çıkar.
 
-1. **Geliştir:** `C:\ikariam-bot\src` altındaki kod değiştirilir. Bu hiçbir oyuncuyu etkilemez.
-2. **Test et:**
-   - `TEST-BASLAT.cmd`'ye çift tıkla (test sunucusu penceresi açılır, açık kalsın).
-   - Oyunda adres çubuğunda adresin sonuna `#ikabot-test` yazıp Enter'a bas. Sayfa yenilenir, bot yerel koddan gelir ve ekranın üstünde kırmızı **TEST SÜRÜMÜ** etiketi durur. (Chrome ilk seferde "yerel ağa erişim" izni sorabilir: izin ver.)
-   - Kod değişince 15 sn içinde "Test kodu değişti → Yenile" uyarısı çıkar.
-   - Bitince etiketteki **Ürüne dön**'e bas. Test sunucusu penceresini kapatabilirsin; test modu açık unutulsa bile sunucu kapalıyken ürün sürümü yüklenir.
-3. **Yayınla:** `YAYINLA.cmd`'ye çift tıkla, ne değiştiğini kısaca yaz. (Aynısı: `node release.js "ne değişti"`.) `version.json` yenilenir, GitHub'a gönderilir; birkaç dakika içinde herkeste "güncelleme var" uyarısı çıkar.
+Klasörler: `src/` = en son kod (test kanalı), `prod/` = yayınlanmış kopya (ürün). `prod/` elle değiştirilmez; sadece yayınlarken üzerine yazılır. Test gönderimleri ürünü etkilemez.
 
 Notlar:
-- Yeni bir `src/*.js` dosyası eklenirse `manifest.json`'daki listeye eklemek yeterli; yükleyici listeyi `version.json`'dan okur.
+- Yeni bir `src/*.js` dosyası eklenirse `manifest.json`'daki listeye eklemek yeterli; yükleyici listeyi sürüm dosyasından okur.
 - `manifest.json` (kök klasör) eski yöntemle yerel eklenti olarak da yüklenebilir, ama yükleyiciyle aynı tarayıcıda kullanma.
 - Depo herkese açıktır; içine şifre, oturum bilgisi ya da kişisel veri koyma. GitHub hesabında iki adımlı doğrulama açık olsun: buraya konan kod herkesin oyununda çalışır.
 

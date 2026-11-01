@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Ikariam Bot (yükleyici)",
+  "version": "1.0.0",
+  "description": "Ikariam botunun güncel sürümünü her sayfa açılışında GitHub Pages'ten yükler. Güncelleme için sayfayı yenilemek yeterli.",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.ikariam.gameforge.com/*"
+      ],
+      "exclude_matches": [
+        "https://lobby.ikariam.gameforge.com/*"
+      ],
+      "js": [
+        "loader.js"
+      ],
+      "run_at": "document_idle",
+      "world": "MAIN",
+      "all_frames": false
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Ikariam Barbar Rotasyonu",
+  "version": "0.1.0",
+  "description": "Barbar rotasyonu, inşaat sırası, mucit atölyesi araştırma sırası ve akademi deneylerini oyun sekmesi içinde otomatikleştirir.",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.ikariam.gameforge.com/*"
+      ],
+      "exclude_matches": [
+        "https://lobby.ikariam.gameforge.com/*"
+      ],
+      "js": [
+        "src/api.js",
+        "src/table.js",
+        "src/game.js",
+        "src/rotation.js",
+        "src/ui.js",
+        "src/build.js",
+        "src/build-ui.js",
+        "src/research.js",
+        "src/research-ui.js",
+        "src/deney.js",
+        "src/deney-ui.js",
+        "src/update.js"
+      ],
+      "run_at": "document_idle",
+      "world": "MAIN",
+      "all_frames": false
+    }
+  ]
+}

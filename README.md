@@ -1,0 +1,87 @@
+# Ikariam Barbar Rotasyonu (Chrome eklentisi)
+
+## Kurulum
+1. Chrome'da `chrome://extensions` adresini aç.
+2. Sağ üstten **Geliştirici modu**nu aç.
+3. **Paketlenmemiş öğe yükle** → bu klasörü (`ikariam-bot`) seç.
+4. Oyun sekmesini yenile. Sol altta **Barbar Rotasyonu** paneli çıkar.
+5. Ayarlar → Performans → Bellek Tasarrufu'nda `ikariam.gameforge.com` adresini "her zaman etkin tut" listesine ekle (sekme uyutulursa bot durur).
+
+## Kullanım
+Panelde her barbar rotasyonu için ayrı bir kart var. **+ Rotasyon ekle** ile istediğin kadar rotasyon açabilir, her birini ayrı başlatıp durdurabilirsin. Rotasyonlar aynı anda çalışır.
+
+- Her rotasyonun kendi barbar sömürgesi ve adası olmalı. Aynı sömürge ya da aynı ada iki rotasyonda kullanılamaz.
+- İki rotasyon aynı kaynak şehri kullanabilir; o zaman askerleri ve kışlayı paylaşırlar.
+- Sorun tek bir rotasyona aitse (saldırı başarısız, sömürge kayboldu, max seviye bitti vb.) sadece o durur.
+- Düşman hareketi, oturum düşmesi ya da korunan şehrin kaybolması **tüm** rotasyonları durdurur.
+
+Her kartta şu ayarlar var:
+- **Kaynak şehir:** askerlerin çıkacağı ana şehir.
+- **Barbar sömürgesi:** barbar köyü vurulacak adadaki geçici sömürge.
+- **Max barbar seviyesi:** bu seviye dahil vurulur, sonra bot uyarı verip durur.
+- Max seviye başlatırken doğrulanır (tablodaki birimler araştırılmış mı); sonradan yükseltmek için rotasyonu durdurup yeniden başlat.
+
+## Seviye tablosu
+Paneldeki **Seviye tablosu** düğmesi tabloyu açar. Her seviyede tam olarak tablodaki askerler gider; yükseltme durumu ya da koçbaşı→mancınık gibi otomatik bir hesap yoktur.
+
+- **+ Seviye ekle:** son seviyenin bir üstünü, son seviyenin askerleriyle ekler. ✕ ile seviye silinir.
+- Her seviyede **+ birim** ile istediğin kara birimini (hoplit, kılıç ustası, koçbaşı, mancınık vb.) ekleyip sayısını yazarsın; birimin yanındaki ✕ onu çıkarır.
+- **Kayıp:** o seviyede ölmesi beklenen hoplit; asker havuzu bu kadar fazlasını basar ve yoldaki askerlerden düşer.
+- **Ganimet:** köyün kaynağı henüz bilinmezken kullanılan ganimet gemisi sayısı.
+- Rotasyonlar 1. seviyeden başlayıp boşluksuz tanımlı son seviyeye kadar kullanabilir; arada eksik ya da askersiz seviye varsa tablo üstünde uyarı çıkar.
+- Değişiklik anında kaydedilir, tüm sekmeler aynı tabloyu kullanır; çalışan rotasyonlar bir sonraki turda yeni değerleri kullanır. **Varsayılana dön** ilk tabloyu (yükseltmesiz değerler) geri yükler.
+
+## Akış
+- **Gönderim zamanı:** Askerler köy toparlandıktan rastgele 30-90 sn sonra varacak şekilde yola çıkar. Hesaba oyundan okunan üç süre girer: limandaki sıra (kaynak şehirde yüklenmekte olan kendi seferlerin), yükleme (askerlerin toplam ağırlığı / liman ekranındaki toplam yükleme hızı; liman seviyeleri ve bonuslar dahil) ve yolculuk (saldırı formunun süresi). "Erken gönderim" ayarı yolculuk kısmının üst sınırıdır; yükleme ve sıra bunun üstüne eklenir. Gönderimden sonra günlüğe tahmini ve oyundaki yükleme süresi yazılır.
+- **Rastgelelik:** İstekler arası 0,8-2 sn, varış payı 30-90 sn, asker havuzu kontrolü 2,5-4 dk, uzun beklemeler %0-15 kısa.
+- Köy toparlanmadan "erken gönderim" kadar önce, tablodaki askerlerin tam sayısı ve ganimet gemileriyle saldırır. Gemi sayısı köydeki yağmadan hesaplanır: (asker yükü + köydeki kaynak) / gemi kapasitesi, aşağı yuvarlanır; bir gemiyi doldurmayan küsurat bırakılır (örn. 200 asker yükü + 5000 kaynak, 500'lük gemi → 10 gemi, 200 kaynak köyde kalır). Erken gönderimde köy henüz kurulmadığı için o seviyenin kaynağı, köy daha önce ayakta görüldüğünde kaydedilen değerden alınır; kayıt yoksa tablodaki ganimet gemisi sayısı kullanılır ve köy kurulduğu an kaynağı okunup kaydedilir. Bu kadar gemi boşta değilse saldırmaz, gemiler dönene kadar bekler (bot durmaz).
+- **Asker havuzu (önden basım):** Bot, sıradaki saldırı dahil önündeki 3 tur (max seviyeyle sınırlı) için gereken askeri hep hazır tutar; ayarı yoktur. Her seviye için tablodaki sayıya, aradaki seviyelerde beklenen kayıplar eklenir. Pencere her saldırıda bir ileri kayar. Aynı kaynak şehri kullanan rotasyonların asker ihtiyaçları toplanır; şahmerdan/mancınık ölmediği için toplanmaz, rotasyonlar aynı kuşatma birimlerini sırayla kullanır.
+- Bot kendi kaydına güvenmez; her kontrolde her şeyi oyundan okur: köyün seviyesi ve yıkık olup olmadığı, köye giden saldırımız var mı, şehirdeki askerler, kışla kuyruğu ve hareket listesindeki yağma seferlerinde dönecek askerler (henüz savaşmamış saldırıda o seviyenin beklenen kaybı düşülerek).
+- Bu ihtiyaç; şehirdeki askerler, kışla kuyruğunda eğitimde olanlar ve yolda olup dönecekler ile karşılaştırılır. Kontrol 3 dakikada bir kendiliğinden yapılır (saldırı gönderilince ya da asker eksik kalınca hemen). Kışla en fazla 3 emir aldığı için eksik tur tur ayrı emirlerle basılır: 1. emir sıradaki saldırının eksiği, 2. emir bir sonraki turun ek ihtiyacı, 3. emir ondan sonrakinin. Böylece ilk tur büyük bir emrin bitmesini beklemez. Kaynak sadece bir kısmına yetiyorsa o kadarı basılır; sonraki turlar basılamazsa bot durmaz, bir sonraki kontrolde tekrar dener. Fazladan asker kalabilir; bu bilerek yapılıyor.
+- Kışla kuyruğu oyundan okunduğu için aynı asker iki kez basılmaz. Kuyruk doluysa (en fazla 3 emir) ya da kaynak/vatandaş yetmiyorsa, yetecek kadarı basılır, kalanı sonra.
+- Gönderim anında yine de eksik varsa durmaz; eğitimdeki askerleri bekler.
+- **Sömürgedeki mızrakçılar:** "Sömürgedeki mızrakçıları kaynak şehre yolla" açıksa (varsayılan açık), rotasyon çalışırken 2,5-4 dk'da bir barbar sömürgesine bakılır. Orada ne kadar mızrakçı varsa hepsi o rotasyonun kaynak şehrine konuşlandırılır. Bu özellik başka hiçbir şey yapmaz: mızrakçı basmaz, bina kurmaz, başka asker yollamaz. Gemi yetmezse ya da oyun reddederse rotasyon durmaz; sebep günlüğe bir kez yazılır, sonra tekrar denenir.
+- Max seviye vurulup askerler dönünce uyarı verip durur. Sömürgeyi silme ve yeniden kurma elle yapılır; yeni sömürgeyle botu tekrar başlat.
+
+## İnşaat Sırası (ayrı bot)
+Barbar panelinin üstündeki **İnşaat Sırası** paneli, barbar botundan tamamen ayrı başlatılıp durdurulur.
+
+- Şehir seç → bina seç → hedef seviye yaz → **+ Sıraya ekle**. ↑ ↓ ile sırayı değiştir, ✕ ile sil.
+- Her şehrin kendi sırası vardır; şehirler birbirini beklemez.
+- Bir şehirde sadece sıranın **ilk** işi yapılır: bina hedef seviyeye gelene kadar birer seviye yükseltilir, sonra iş silinip sıradakine geçilir.
+- Şehirde inşaat varsa bitmesi beklenir. Malzeme yoksa beklenir (2,5-5 dk'da bir bakılır); sıradaki işe **atlanmaz**.
+- Her yükseltme emrinden sonra şehir tekrar okunup inşaatın gerçekten başladığı doğrulanır.
+- Sadece var olan binalar yükseltilir; boş arsaya yeni bina kurmaz.
+- Oturum düşerse/captcha çıkarsa durur. Sayfa yenilenirse kaldığı yerden devam eder.
+
+## Araştırma Sırası (ayrı bot)
+İnşaat panelinin üstündeki **Araştırma Sırası** paneli mucit atölyesinde birim/gemi araştırması yapar; diğer iki bottan tamamen ayrı başlatılıp durdurulur.
+
+- Şehir seç → birim seç → araştırma seç (Zarar ya da Zırh) → hedef seviye yaz → **+ Sıraya ekle**. Listeler oyundan okunur: sadece o şehirde mucit atölyesi varsa birimler gelir; her birimin şu anki seviyesi, sonraki seviyenin adı ve oyunun engel mesajı (örn. "Bina kademesi yeterli değil!") görünür. Araştırması olmayan birimler (kargo gemisi) listelenmez.
+- Her şehrin kendi sırası vardır. Sadece sıranın **ilk** işi yapılır: araştırma hedef seviyeye gelene kadar birer seviye yapılır, sonra iş silinip sıradakine geçilir. En yüksek seviyeye ulaşılmışsa iş silinir.
+- Atölyede araştırma varsa bitmesi beklenir. Altın ya da kristal yetmiyorsa veya oyun engel gösteriyorsa beklenir; sıradaki işe **atlanmaz**.
+- Her emirden sonra atölye tekrar okunup araştırmanın gerçekten başladığı doğrulanır.
+- Oturum düşerse/captcha çıkarsa durur. Sayfa yenilenirse kaldığı yerden devam eder.
+
+## Deney Botu (ayrı bot)
+Araştırma panelinin üstündeki **Deney Botu** paneli akademide kristalle deney yapar; diğer botlardan tamamen ayrı başlatılıp durdurulur.
+
+- Tek ayar şehir seçimidir: listede deney yapılacak şehirleri tikle, **Başlat**'a bas. Seçim çalışırken de değiştirilebilir.
+- Bot açık olduğu sürece seçili her şehirde imkan oldukça deney yapılır. Akademinin bekleme süresi (her deneyden sonra yaklaşık 4 saat) sürüyorsa ya da kristal yetmiyorsa beklenir (10-30 dk'da bir bakılır), sonra tekrar dener. Şehirler birbirini beklemez.
+- Deney kristali o şehrin deposundan harcanır; o şehirde optik varsa maliyet düşer. Bu yüzden optiği yüksek şehirleri seçmek daha ucuzdur.
+- Ambrosialı deneye hiç dokunulmaz: ekranda ambrosia/premium geçen hiçbir düğme seçilmez. Bir deneyden sonra ambrosia azalmış görünürse bot hemen durur ve uyarır.
+- Deney, oyunun akademi ekranındaki kendi deney düğmesi okunup gönderilerek yapılır; her deneyden sonra akademi tekrar okunup kristalin harcandığı doğrulanır.
+- Deney yapmak için **Bilim → Deneyler** araştırması gerekir; yapılmamışsa bot "deney bölümü bulunamadı" yazıp bekler.
+- Oturum düşerse/captcha çıkarsa durur. Sayfa yenilenirse kaldığı yerden devam eder.
+
+## Botları ayrı ayrı açıp kapama
+Her panelin başlığında kendi **Açık** tiki var (barbar, inşaat, araştırma, deney). Birinin tikini kaldırınca sadece o bot anında duraklar; diğerleri çalışmaya devam eder. Duraklatılan botun hiçbir isteği sunucuya gitmez, ayarları ve sırası silinmez; tik tekrar açılınca kaldığı yerden, oyundan taze okuyarak devam eder. Tikler tüm sekmelerde ortaktır ve sayfa yenilense de korunur. (Başlat/Durdur ise botu tamamen başlatır ya da bitirir.)
+
+## Botun durduğu durumlar
+- Max seviyeye ulaşıldığında.
+- Düşman oyuncu hareketi (saldırı, blokaj vb.). Barbarların bize saldırısı botu durdurmaz.
+- Oturum düşerse ya da captcha çıkarsa.
+
+Saldırı formu açılmazsa (ör. liman bloklu) bot durmaz; sebebi loga yazar ve birkaç dakika sonra tekrar dener.
+- Saldırı başarısız olursa.
+- Gereken birim araştırılmamışsa.

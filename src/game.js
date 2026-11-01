@@ -743,6 +743,8 @@
         cooldownEnd: stamps.length ? Math.min(...stamps) : null,
         crystal: Number((h.currentResources || {})['3']) || 0,
         ambrosia: Number(h.ambrosia),
+        // Ham ekran (deney düğmesi okunamazsa tanı dökümüne konur; bkz. deney.js).
+        raw: { html: r.html, template: t },
       };
     };
 

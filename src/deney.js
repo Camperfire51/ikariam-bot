@@ -55,6 +55,26 @@
   const fmtClock = (ms) => new Date(ms).toLocaleTimeString('tr-TR');
   const fmtNum = (n) => Number(n).toLocaleString('tr-TR');
 
+  // Deney düğmesi okunamayan akademi ekranının ham hâli (HTML + şablon verisi), şehir başına son kayıt.
+  // Oturum anahtarı silinir. Bot menüsündeki "Günlüğü kopyala" (src/dock.js) bunu tanı dökümüne ekler.
+  const DUMP_KEY = 'ikabot.deney.academyDump';
+  function saveAcademyDump(cityId, label, a) {
+    try {
+      const all = JSON.parse(localStorage.getItem(DUMP_KEY) || '{}');
+      const clean = (s) => String(s).replace(/actionRequest(["'=:\\]+)[0-9a-f]{20,}/gi, 'actionRequest$1…');
+      all[cityId] = {
+        at: new Date().toLocaleString('tr-TR'),
+        city: label,
+        crystal: a.crystal,
+        cooldownEnd: a.cooldownEnd,
+        found: a.found,
+        html: clean(a.raw.html).slice(0, 150000),
+        template: clean(JSON.stringify(a.raw.template)).slice(0, 100000),
+      };
+      localStorage.setItem(DUMP_KEY, JSON.stringify(all));
+    } catch (e) {}
+  }
+
   const D = (IB.deney = {
     cities: [], // { cityId, cityName }
     running: false,
@@ -167,6 +187,8 @@
         this._debugLogged[cityId] = a.debug;
         log(`${label}: akademi ekranında kristalli deney düğmesi okunamadı. Ekran dökümü (sorun bildirirken bunu gönder):\n${a.debug}`, 'warn');
       }
+      // Akademi ekranının tamamı da saklanır; bot menüsündeki "Günlüğü kopyala" bunu da ekler.
+      if (a.debug) saveAcademyDump(cityId, label, a);
       if (!a.found) {
         this.warnOnce(cityId, `${label}: akademide deney bölümü bulunamadı (Bilim → Deneyler araştırması yapılmamış olabilir), bekliyor.`);
         return IB.rand(1200, 1800);

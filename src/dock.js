@@ -37,10 +37,15 @@
       .bot { display:flex; align-items:center; gap:4px; font-size:11px; color:#444444; }
       .d { width:8px; height:8px; border-radius:50%; background:#9a9a9a; }
       .d.good { background:#2e9e44; } .d.bad { background:#d93a2f; }
-      .arrow { color:#1d1d1d; }
+      .arrow { color:#1d1d1d; white-space:nowrap; }
+      button { font:inherit; font-size:11px; padding:1px 7px; border-radius:4px; border:1px solid #6b4c22; background:#ffffff;
+        color:#1d1d1d; cursor:pointer; white-space:nowrap; }
+      button.ok { color:#1e7d32; border-color:#1e7d32; } button.fail { color:#b3392f; border-color:#b3392f; }
     </style>
     <div class="bar" id="bar" title="Bütün bot panellerini gizle / göster (botlar çalışmaya devam eder)">
-      <b>Ikariam Bot</b><span class="bots" id="bots"></span><span class="arrow" id="arrow"></span>
+      <b>Ikariam Bot</b><span class="bots" id="bots"></span>
+      <button id="copy" title="Bütün botların günlüklerini, durumlarını ve ayarlarını tek metin olarak panoya kopyalar (sorun bildirmek için). Oturum anahtarı eklenmez.">📋 Günlük</button>
+      <span class="arrow" id="arrow"></span>
     </div>`;
   const $ = (id) => root.getElementById(id);
 
@@ -75,6 +80,83 @@
   }
   setInterval(tick, 1000);
   setTimeout(tick, 500);
+
+  // ---------- Tanı dökümü ("📋 Günlük") ----------
+  // Sorun bildirmek için tek metin: sürüm, her botun canlı durumu ve bu oyun sayfasındaki bütün bot kayıtları
+  // (günlükler, ayarlar, sıralar, deney botunun sakladığı akademi ekranı). Oturum anahtarı ve kilitler eklenmez.
+  const scrub = (s) => String(s).replace(/actionRequest(["'=:\\]+)[0-9a-f]{20,}/gi, 'actionRequest$1…');
+  function report() {
+    const L = window.IkaBotLoader || {};
+    const out = [
+      `Ikariam Bot tanı dökümü — ${new Date().toLocaleString('tr-TR')}`,
+      `Sürüm: ${L.version || 'yerel eklenti'} · kapalı modüller: ${(L.off || []).join(', ') || 'yok'} · sunucu: ${location.host}`,
+      `Tarayıcı: ${navigator.userAgent}`,
+      '',
+      '== Canlı durum ==',
+    ];
+    for (const [id, name] of BOTS) {
+      const h = document.getElementById(id);
+      if (!h || !h.shadowRoot) {
+        out.push(`${name}: (yüklü değil)`);
+        continue;
+      }
+      const live = h.shadowRoot.getElementById('live');
+      out.push(`${name}: ${live ? live.textContent : '?'}`);
+      // Panel içindeki şehir/rotasyon durum satırları.
+      for (const el of h.shadowRoot.querySelectorAll('.cs, [data-k="status"]')) {
+        const t = el.textContent.replace(/\s+/g, ' ').trim();
+        if (t) out.push(`   · ${t}`);
+      }
+    }
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('ikabot.') && !/\.lock$/.test(k)) keys.push(k);
+    }
+    // Önce günlükler (okunur biçimde, eskiden yeniye), sonra diğer kayıtlar olduğu gibi.
+    keys.sort((a, b) => (/\.log$/.test(b) - /\.log$/.test(a)) || a.localeCompare(b));
+    for (const k of keys) {
+      const v = localStorage.getItem(k) || '';
+      out.push('', `== ${k} (${v.length} karakter) ==`);
+      let list = null;
+      try {
+        list = /\.log$/.test(k) ? JSON.parse(v) : null;
+      } catch (e) {}
+      if (Array.isArray(list)) for (const e of list) out.push(`${new Date(e.t).toLocaleString('tr-TR')} [${e.level}] ${e.msg}`);
+      else out.push(v);
+    }
+    return scrub(out.join('\n'));
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      // Pano izni yoksa eski yöntem.
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;left:-9999px;top:0;';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    }
+  }
+
+  $('copy').addEventListener('click', async (e) => {
+    e.stopPropagation(); // çubuğa tıklama sayılmasın (panelleri gizleyip göstermesin)
+    const b = $('copy');
+    const text = report();
+    const ok = await copyText(text);
+    b.className = ok ? 'ok' : 'fail';
+    b.textContent = ok ? `✓ kopyalandı (${Math.ceil(text.length / 1024)} KB)` : '✕ kopyalanamadı';
+    setTimeout(() => {
+      b.className = '';
+      b.textContent = '📋 Günlük';
+    }, 4000);
+  });
 
   // En alttaki panelin oturacağı yükseklik (px): çubuğun hemen üstü.
   IB.dock = { base: () => 12 + (host.getBoundingClientRect().height || 30) + GAP };

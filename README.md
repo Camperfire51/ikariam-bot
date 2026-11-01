@@ -1,12 +1,7 @@
 # Ikariam Barbar Rotasyonu (Chrome eklentisi)
 
 ## Kurulum
-Bot kodu GitHub Pages'te durur (https://camperfire51.github.io/ikariam-bot/). Chrome'a sadece küçük bir yükleyici kurulur; her sayfa açılışında güncel sürüm oradan gelir. İki yükleyici var:
-
-- `ikariam-yukleyici.zip` → **ürün**: yayınlanmış sürüm. Herkes bunu kurar.
-- `ikariam-yukleyici-TEST.zip` → **test**: henüz yayınlanmamış en son kod. Sadece geliştiricinin bilgisayarı. Ekranın üstünde küçük kırmızı "TEST SÜRÜMÜ" etiketi durur.
-
-(Zip'ler depoda değil; `loader` klasöründen üretilir. TEST'te `loader.js` içinde `CHANNEL = 'test'` yazılıdır.)
+Bot kodu GitHub Pages'te durur (https://camperfire51.github.io/ikariam-bot/). Chrome'a sadece küçük bir yükleyici kurulur (`loader` klasörü, `ikariam-yukleyici.zip` olarak gönderilir; zip depoda değil); her sayfa açılışında güncel sürüm oradan gelir. Herkes, geliştiricinin bilgisayarı dahil, aynı yükleyiciyi ve aynı sürümü kullanır. Eski yükleyici sürümleri (TEST olanı dahil) de çalışmaya devam eder.
 
 1. Zip'i açıp çıkan klasörü bilgisayarda kalıcı bir yere koy. Klasörü silme/taşıma.
 2. Chrome'da `chrome://extensions` adresini aç, sağ üstten **Geliştirici modu**nu aç.
@@ -17,15 +12,11 @@ Bot kodu GitHub Pages'te durur (https://camperfire51.github.io/ikariam-bot/). Ch
 
 Güncelleme: yeni sürüm yayınlanınca açık oyun sekmesinin üstünde **"Bot güncellemesi var"** uyarısı çıkar (10 dakikada bir bakılır). **Yenile**'ye basmak ya da sayfayı yenilemek yeterli; çalışan botlar kaldığı yerden devam eder.
 
-## Geliştirme → deneme → yayınlama
-1. **Değişiklik + test gönderimi:** kod `src/` altında değiştirilir, sonra `node release.js test "ne değişti"` ile test kanalına gönderilir (`beta.json` yenilenir). Sadece TEST yükleyicili bilgisayarda 1 dk içinde "Yeni test sürümü var → Yenile" çıkar.
-2. **Deneme:** geliştirici kendi oyununda oynar. Diğer herkes yayınlanmış sürümde kalır.
-3. **Yayınlama:** `YAYINLA.cmd`'ye çift tıkla ya da `node release.js yayinla "ne değişti"`. `src/` dosyaları `prod/src/` altına kopyalanır, `version.json` yenilenir; birkaç dakika içinde herkeste "güncelleme var" uyarısı çıkar.
-
-Klasörler: `src/` = en son kod (test kanalı), `prod/` = yayınlanmış kopya (ürün). `prod/` elle değiştirilmez; sadece yayınlarken üzerine yazılır. Test gönderimleri ürünü etkilemez.
+## Değişiklik ve yayınlama
+Her değişiklik bittiğinde doğrudan yayınlanır: `node release.js "ne değişti"` (ya da `YAYINLA.cmd`'ye çift tıkla). `version.json` yeni sürüm numarası ve `manifest.json`'daki dosya listesiyle yazılır, commit'lenip GitHub'a gönderilir. GitHub Pages birkaç dakika içinde yayına alır; herkesin açık oyun sekmesinde "Bot güncellemesi var → Yenile" çıkar. Ayrı bir test sürümü yoktur.
 
 Notlar:
-- Yeni bir `src/*.js` dosyası eklenirse `manifest.json`'daki listeye eklemek yeterli; yükleyici listeyi sürüm dosyasından okur.
+- Yeni bir `src/*.js` dosyası eklenirse `manifest.json`'daki listeye eklemek yeterli; yükleyici listeyi `version.json`'dan okur.
 - `manifest.json` (kök klasör) eski yöntemle yerel eklenti olarak da yüklenebilir, ama yükleyiciyle aynı tarayıcıda kullanma.
 - Depo herkese açıktır; içine şifre, oturum bilgisi ya da kişisel veri koyma. GitHub hesabında iki adımlı doğrulama açık olsun: buraya konan kod herkesin oyununda çalışır.
 

@@ -55,21 +55,42 @@
   const fmtClock = (ms) => new Date(ms).toLocaleTimeString('tr-TR');
   const fmtNum = (n) => Number(n).toLocaleString('tr-TR');
 
-  // Deney düğmesi okunamayan akademi ekranının ham hâli (HTML + şablon verisi), şehir başına son kayıt.
-  // Oturum anahtarı silinir. Bot menüsündeki "Günlüğü kopyala" (src/dock.js) bunu tanı dökümüne ekler.
+  // Deney düğmesi okunamayan akademi ekranının deneyle ilgili bölümü (HTML + ilgili şablon verisi), şehir başına
+  // son kayıt. Sohbete yapıştırılabilecek kadar kısa tutulur: deney kutularını içeren kapsayıcının iki üstü,
+  // betikler çıkarılmış, boşluklar sıkıştırılmış. Oturum anahtarı silinir. "📋 Günlük" (src/dock.js) bunu ekler.
   const DUMP_KEY = 'ikabot.deney.academyDump';
+  const clean = (s) => String(s).replace(/actionRequest(["'=:\\]+)[0-9a-f]{20,}/gi, 'actionRequest$1…');
+  function experimentArea(html) {
+    const doc = IB.parseHtml(html);
+    for (const s of doc.querySelectorAll('script, style')) s.remove();
+    const boxes = [...doc.querySelectorAll('.experiment')];
+    let el = null;
+    if (boxes.length) {
+      // Bütün kutuları içeren en yakın kapsayıcı, sonra iki üstü (düğme kutunun yanında durabiliyor).
+      el = boxes[0];
+      while (el.parentElement && !boxes.every((b) => el.contains(b))) el = el.parentElement;
+      for (let i = 0; i < 2 && el.parentElement && el.parentElement !== doc.body; i++) el = el.parentElement;
+    } else {
+      // Kutu yoksa "Masraf"/deney yazan en küçük blok.
+      const hits = [...doc.querySelectorAll('div, li, form, table')].filter((x) => /deney|xperiment|masraf/i.test(x.textContent));
+      el = hits.sort((p, q) => p.outerHTML.length - q.outerHTML.length)[0] || null;
+      if (el && el.parentElement && el.parentElement !== doc.body) el = el.parentElement.parentElement || el.parentElement;
+    }
+    const out = (el || doc.body).outerHTML.replace(/\s+/g, ' ');
+    return out.length > 15000 ? out.slice(0, 15000) + ' …(kesildi)' : out;
+  }
   function saveAcademyDump(cityId, label, a) {
     try {
       const all = JSON.parse(localStorage.getItem(DUMP_KEY) || '{}');
-      const clean = (s) => String(s).replace(/actionRequest(["'=:\\]+)[0-9a-f]{20,}/gi, 'actionRequest$1…');
+      const tpl = Object.fromEntries(Object.entries(a.raw.template || {}).filter(([k]) => /xperiment|cooldown|academy|crystal|glass/i.test(k)));
       all[cityId] = {
         at: new Date().toLocaleString('tr-TR'),
         city: label,
         crystal: a.crystal,
         cooldownEnd: a.cooldownEnd,
         found: a.found,
-        html: clean(a.raw.html).slice(0, 150000),
-        template: clean(JSON.stringify(a.raw.template)).slice(0, 100000),
+        html: clean(experimentArea(a.raw.html)),
+        template: clean(JSON.stringify(tpl)).slice(0, 5000),
       };
       localStorage.setItem(DUMP_KEY, JSON.stringify(all));
     } catch (e) {}

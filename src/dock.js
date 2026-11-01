@@ -113,20 +113,28 @@
       const k = localStorage.key(i);
       if (k && k.startsWith('ikabot.') && !/\.lock$/.test(k)) keys.push(k);
     }
-    // Önce günlükler (okunur biçimde, eskiden yeniye), sonra diğer kayıtlar olduğu gibi.
-    keys.sort((a, b) => (/\.log$/.test(b) - /\.log$/.test(a)) || a.localeCompare(b));
+    // Sohbete yapıştırılınca kesilmesin diye kısa tutulur (~40 KB): önce deney ekranı ve deney günlüğü (en çok
+    // sorun çıkan yer), sonra diğer günlüklerin son kayıtları, en son ayarlar (her biri kısaltılmış).
+    const rank = (k) => (k === 'ikabot.deney.academyDump' ? 0 : k === 'ikabot.deney.log' ? 1 : /\.log$/.test(k) ? 2 : 3);
+    keys.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
     for (const k of keys) {
       const v = localStorage.getItem(k) || '';
-      out.push('', `== ${k} (${v.length} karakter) ==`);
       let list = null;
       try {
         list = /\.log$/.test(k) ? JSON.parse(v) : null;
       } catch (e) {}
-      if (Array.isArray(list)) for (const e of list) out.push(`${new Date(e.t).toLocaleString('tr-TR')} [${e.level}] ${e.msg}`);
-      else out.push(v);
+      if (Array.isArray(list)) {
+        const last = list.slice(-LOG_LINES);
+        out.push('', `== ${k} (son ${last.length} / ${list.length} kayıt) ==`);
+        for (const e of last) out.push(`${new Date(e.t).toLocaleString('tr-TR')} [${e.level}] ${e.msg}`);
+      } else {
+        const max = rank(k) === 0 ? 20000 : 1500;
+        out.push('', `== ${k} (${v.length} karakter) ==`, v.length > max ? v.slice(0, max) + ' …(kesildi)' : v);
+      }
     }
     return scrub(out.join('\n'));
   }
+  const LOG_LINES = 40;
 
   async function copyText(text) {
     try {

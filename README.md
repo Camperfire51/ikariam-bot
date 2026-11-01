@@ -1,11 +1,22 @@
 # Ikariam Barbar Rotasyonu (Chrome eklentisi)
 
-## Kurulum
-1. Chrome'da `chrome://extensions` adresini aç.
-2. Sağ üstten **Geliştirici modu**nu aç.
-3. **Paketlenmemiş öğe yükle** → bu klasörü (`ikariam-bot`) seç.
-4. Oyun sekmesini yenile. Sol altta **Barbar Rotasyonu** paneli çıkar.
-5. Ayarlar → Performans → Bellek Tasarrufu'nda `ikariam.gameforge.com` adresini "her zaman etkin tut" listesine ekle (sekme uyutulursa bot durur).
+## Kurulum (otomatik güncellenen)
+Bot kodu GitHub Pages'te durur (https://camperfire51.github.io/ikariam-bot/). Chrome'a sadece küçük bir yükleyici kurulur; her sayfa açılışında güncel sürüm oradan gelir.
+
+1. Bu depodaki `loader` klasörünü bilgisayara kopyala (sadece `manifest.json` ve `loader.js` var).
+2. Chrome'da `chrome://extensions` adresini aç, sağ üstten **Geliştirici modu**nu aç.
+3. Eski bot eklentisi yüklüyse **kaldır** (ayarlar ve kayıtlar silinmez, oyunun sayfasında durur).
+4. **Paketlenmemiş öğe yükle** → `loader` klasörünü seç.
+5. Oyun sekmesini yenile. Sol altta **Barbar Rotasyonu** paneli çıkar.
+6. Ayarlar → Performans → Bellek Tasarrufu'nda `ikariam.gameforge.com` adresini "her zaman etkin tut" listesine ekle (sekme uyutulursa bot durur).
+
+Güncelleme: yeni sürüm yayınlanınca açık oyun sekmesinin üstünde **"Bot güncellemesi var"** uyarısı çıkar (10 dakikada bir bakılır). **Yenile**'ye basmak ya da sayfayı yenilemek yeterli; çalışan botlar kaldığı yerden devam eder. Yükleyici bir daha değiştirilmez.
+
+## Geliştirme ve yeni sürüm yayınlama
+- Kendi bilgisayarında denemek için yükleyici yerine bu klasörün kendisini (`ikariam-bot`) paketlenmemiş öğe olarak yükle; kod yerel dosyalardan çalışır. İkisini aynı anda yükleme (yükleyici yerel bot zaten yüklüyse kendini devre dışı bırakır ama sıralama garanti değil).
+- Değişiklik bitince klasörde şunu çalıştır: `node release.js "ne değişti"`. `version.json` yeni sürüm numarası ve `manifest.json`'daki dosya listesiyle yazılır, commit'lenip GitHub'a gönderilir. GitHub Pages birkaç dakika içinde yayına alır.
+- Yeni bir `src/*.js` dosyası eklenirse `manifest.json`'daki listeye eklemek yeterli; yükleyici listeyi `version.json`'dan okur.
+- Depo herkese açıktır; içine şifre, oturum bilgisi ya da kişisel veri koyma. GitHub hesabında iki adımlı doğrulama açık olsun: buraya konan kod arkadaşlarının oyununda çalışır.
 
 ## Kullanım
 Panelde her barbar rotasyonu için ayrı bir kart var. **+ Rotasyon ekle** ile istediğin kadar rotasyon açabilir, her birini ayrı başlatıp durdurabilirsin. Rotasyonlar aynı anda çalışır.

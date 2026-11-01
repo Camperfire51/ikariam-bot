@@ -245,4 +245,31 @@
       return { fields, text: stripTags(f.textContent) };
     });
   };
+
+  // ---------- Bildirim (tüm botlar) ----------
+  // Chrome, sayfaya tıklanmadan ses çalınmasına izin vermez. Ses bağlamı ilk tıklamada/tuşta açılır;
+  // açılmamışsa uyarı sesi atlanır (masaüstü bildirimi yine gider).
+  let audioCtx = null;
+  const unlockAudio = () => {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) {}
+  };
+  window.addEventListener('pointerdown', unlockAudio, { capture: true });
+  window.addEventListener('keydown', unlockAudio, { capture: true });
+
+  IB.notify = (title, body) => {
+    try {
+      if (window.Notification && Notification.permission === 'granted') new Notification(title, { body });
+    } catch (e) {}
+    try {
+      if (!audioCtx || audioCtx.state !== 'running') return;
+      const o = audioCtx.createOscillator();
+      o.frequency.value = 880;
+      o.connect(audioCtx.destination);
+      o.start();
+      setTimeout(() => o.stop(), 400);
+    } catch (e) {}
+  };
 })();

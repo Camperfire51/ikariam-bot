@@ -59,9 +59,10 @@
     .log { height:110px; overflow:auto; border:1px solid #d9c49a; border-radius:4px; padding:4px; font-size:11px; }
     .log div { border-bottom:1px dotted #e6d6b3; padding:1px 0; }
     .log div.warn { color:#9a5b00; } .log div.error { color:#b3392f; font-weight:600; }
+    ${IB.live.CSS}
   </style>
   <div class="panel collapsed" id="panel">
-    <div class="head" id="head"><span class="dot" id="dot"></span><b id="title">Araştırma Sırası</b><label class="onoff" id="onoffLbl" title="Kapatınca sadece araştırma botu duraklar; barbar ve inşaat botları çalışmaya devam eder. Hiçbir kayıt silinmez, açınca kaldığı yerden devam eder."><input type="checkbox" id="onoff"> Açık</label><span id="toggle">▲</span></div>
+    <div class="head" id="head"><span class="dot" id="dot"></span><b id="title">Araştırma Sırası</b><label class="onoff" id="onoffLbl" title="Kapatınca sadece araştırma botu duraklar; barbar ve inşaat botları çalışmaya devam eder. Hiçbir kayıt silinmez, açınca kaldığı yerden devam eder."><input type="checkbox" id="onoff"> Açık</label><span id="toggle">▲</span></div>${IB.live.HTML}
     <div class="body">
       <div class="row">
         <button class="primary" id="start">Başlat</button>
@@ -81,6 +82,7 @@
   </div>`;
 
   const $ = (id) => root.getElementById(id);
+  let liveTick = () => {}; // canlı satır (bkz. IB.live.attach); render sonrası geri sayımları hemen doldurur
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const TYPES = ['offensive', 'defensive'];
 
@@ -237,7 +239,7 @@
             </div>`
           )
           .join('');
-        const cs = R.running && R.cityStatus[cityId] ? `<div class="cs">${esc(R.cityStatus[cityId])}</div>` : '';
+        const cs = R.running && R.cityStatus[cityId] ? IB.live.line(esc(R.cityStatus[cityId]), R.cityStatus[cityId], R.nextAt[cityId]) : '';
         return `<div class="city"><h4>${esc(items[0].cityName)}</h4>${rows}${cs}</div>`;
       })
       .join('');
@@ -247,6 +249,7 @@
       .reverse()
       .map((e) => `<div class="${e.level}">${new Date(e.t).toLocaleString('tr-TR')} — ${esc(e.msg)}</div>`)
       .join('');
+    liveTick();
   }
 
   $('head').addEventListener('click', () => {
@@ -264,5 +267,14 @@
 
   R.onChange(render);
   setInterval(render, 5000);
+  const cityLabel = (id) => (R.itemsOf(id)[0] || {}).cityName || String(id);
+  liveTick = IB.live.attach(root, () => ({
+    paused: IB.isPaused('arastirma'),
+    passive: R.passive,
+    running: R.running,
+    status: R.status,
+    current: R.current ? cityLabel(R.current) : null,
+    items: R.cityIds().map((id) => ({ label: cityLabel(id), status: R.cityStatus[id], nextAt: R.nextAt[id] })),
+  }));
   render();
 })();

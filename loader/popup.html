@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Ikariam Bot</title>
+<style>
+  body { margin:0; width:300px; font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color:#1d1d1d; background:#ffffff; }
+  header { padding:10px 12px; border-bottom:1px solid #d9c49a; }
+  header b { font-size:14px; }
+  #ver { font-size:11px; color:#666666; }
+  ul { list-style:none; margin:0; padding:6px 12px; }
+  li { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px dotted #e6d6b3; }
+  li:last-child { border-bottom:none; }
+  .name { flex:1; font-weight:600; }
+  .pill { font-size:11px; padding:1px 7px; border-radius:10px; }
+  .on .pill { color:#1e7d32; background:#e3f4e6; }
+  .off .pill { color:#666666; background:#eeeeee; }
+  .off .name { color:#888888; }
+  button { font:inherit; font-size:12px; padding:3px 10px; border-radius:4px; border:1px solid #6b4c22; background:#ffffff; color:#1d1d1d; cursor:pointer; min-width:64px; }
+  .on button { color:#b3392f; border-color:#b3392f; }
+  .note { padding:8px 12px 12px; font-size:11px; color:#666666; border-top:1px solid #d9c49a; }
+  #msg { color:#1e7d32; }
+</style>
+</head>
+<body>
+  <header><b>Ikariam Bot — modüller</b><div id="ver">sürüm okunuyor…</div></header>
+  <ul id="list"></ul>
+  <div class="note">
+    Kaldırılan modül oyundan tamamen kalkar: paneli görünmez, hiç çalışmaz. Ayarları, sırası ve kayıtları silinmez;
+    tekrar eklenince kaldığı yerden devam eder. Değişince açık oyun sekmeleri kendiliğinden yenilenir.
+    <div id="msg"></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

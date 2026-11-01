@@ -15,6 +15,7 @@
         "src/api.js",
         "src/table.js",
         "src/game.js",
+        "src/live.js",
         "src/rotation.js",
         "src/ui.js",
         "src/build.js",

@@ -11,10 +11,20 @@ const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'ut
 const files = manifest.content_scripts[0].js;
 for (const f of files) if (!fs.existsSync(path.join(dir, f))) throw new Error('Dosya yok: ' + f);
 
+// Modüller (modules.json): yükleyici, eklenti penceresinde kapatılan modüllerin dosyalarını yüklemez.
+// Her dosya ya çekirdekte ya da tek bir modülde olmalı. files: tüm dosyalar, yükleme sırası (eski yükleyiciler bunu kullanır).
+const mods = JSON.parse(fs.readFileSync(path.join(dir, 'modules.json'), 'utf8'));
+const listed = [...mods.core, ...mods.modules.flatMap((m) => m.files)];
+for (const f of files) if (listed.filter((x) => x === f).length !== 1) throw new Error(`modules.json: ${f} tam bir kez listelenmeli`);
+for (const f of listed) if (!files.includes(f)) throw new Error(`modules.json: ${f} manifest.json'da yok`);
+
 const d = new Date();
 const p = (n) => String(n).padStart(2, '0');
 const version = `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
-fs.writeFileSync(path.join(dir, 'version.json'), JSON.stringify({ version, files }, null, 2) + '\n');
+fs.writeFileSync(
+  path.join(dir, 'version.json'),
+  JSON.stringify({ version, files, core: mods.core, modules: mods.modules }, null, 2) + '\n'
+);
 
 const msg = process.argv.slice(2).join(' ').trim() || 'Yeni sürüm';
 const git = (...args) => execFileSync('git', args, { cwd: dir, stdio: 'inherit' });

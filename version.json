@@ -1,9 +1,10 @@
 {
-  "version": "2026.11.01-1725",
+  "version": "2026.11.01-1817",
   "files": [
     "src/api.js",
     "src/table.js",
     "src/game.js",
+    "src/live.js",
     "src/rotation.js",
     "src/ui.js",
     "src/build.js",
@@ -13,5 +14,46 @@
     "src/deney.js",
     "src/deney-ui.js",
     "src/update.js"
+  ],
+  "core": [
+    "src/api.js",
+    "src/table.js",
+    "src/game.js",
+    "src/live.js",
+    "src/update.js"
+  ],
+  "modules": [
+    {
+      "id": "barbar",
+      "name": "Barbar Rotasyonu",
+      "files": [
+        "src/rotation.js",
+        "src/ui.js"
+      ]
+    },
+    {
+      "id": "insaat",
+      "name": "İnşaat Sırası",
+      "files": [
+        "src/build.js",
+        "src/build-ui.js"
+      ]
+    },
+    {
+      "id": "arastirma",
+      "name": "Araştırma Sırası",
+      "files": [
+        "src/research.js",
+        "src/research-ui.js"
+      ]
+    },
+    {
+      "id": "deney",
+      "name": "Deney Botu",
+      "files": [
+        "src/deney.js",
+        "src/deney-ui.js"
+      ]
+    }
   ]
 }

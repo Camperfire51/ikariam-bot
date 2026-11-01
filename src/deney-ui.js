@@ -51,9 +51,10 @@
     .log { height:110px; overflow:auto; border:1px solid #d9c49a; border-radius:4px; padding:4px; font-size:11px; }
     .log div { border-bottom:1px dotted #e6d6b3; padding:1px 0; white-space:pre-wrap; user-select:text; }
     .log div.warn { color:#9a5b00; } .log div.error { color:#b3392f; font-weight:600; }
+    ${IB.live.CSS}
   </style>
   <div class="panel collapsed" id="panel">
-    <div class="head" id="head"><span class="dot" id="dot"></span><b id="title">Deney Botu</b><label class="onoff" id="onoffLbl" title="Kapatınca sadece deney botu duraklar; diğer botlar çalışmaya devam eder. Hiçbir kayıt silinmez, açınca kaldığı yerden devam eder."><input type="checkbox" id="onoff"> Açık</label><span id="toggle">▲</span></div>
+    <div class="head" id="head"><span class="dot" id="dot"></span><b id="title">Deney Botu</b><label class="onoff" id="onoffLbl" title="Kapatınca sadece deney botu duraklar; diğer botlar çalışmaya devam eder. Hiçbir kayıt silinmez, açınca kaldığı yerden devam eder."><input type="checkbox" id="onoff"> Açık</label><span id="toggle">▲</span></div>${IB.live.HTML}
     <div class="body">
       <div class="row">
         <button class="primary" id="start">Başlat</button>
@@ -67,6 +68,7 @@
   </div>`;
 
   const $ = (id) => root.getElementById(id);
+  let liveTick = () => {}; // canlı satır (bkz. IB.live.attach); render sonrası geri sayımları hemen doldurur
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   function cities() {
@@ -126,7 +128,7 @@
     const html = cities()
       .map((c) => {
         const on = D.has(c.id);
-        const cs = D.running && on && D.cityStatus[c.id] ? `<div class="cs">${esc(D.cityStatus[c.id])}</div>` : '';
+        const cs = D.running && on && D.cityStatus[c.id] ? IB.live.line(esc(D.cityStatus[c.id]), D.cityStatus[c.id], D.nextAt[c.id]) : '';
         return `<div class="city"><label><input type="checkbox" data-city="${c.id}" ${on ? 'checked' : ''} ${passive ? 'disabled' : ''}>${esc(c.label)}</label>${cs}</div>`;
       })
       .join('');
@@ -140,6 +142,7 @@
       .reverse()
       .map((e) => `<div class="${e.level}">${new Date(e.t).toLocaleString('tr-TR')} — ${esc(e.msg)}</div>`)
       .join('');
+    liveTick();
   }
 
   $('head').addEventListener('click', () => {
@@ -157,5 +160,14 @@
 
   D.onChange(render);
   setInterval(render, 5000);
+  const cityLabel = (id) => (D.cities.find((c) => c.cityId === id) || {}).cityName || String(id);
+  liveTick = IB.live.attach(root, () => ({
+    paused: IB.isPaused('deney'),
+    passive: D.passive,
+    running: D.running,
+    status: D.status,
+    current: D.current ? cityLabel(D.current) : null,
+    items: D.cities.map((c) => ({ label: c.cityName, status: D.cityStatus[c.cityId], nextAt: D.nextAt[c.cityId] })),
+  }));
   render();
 })();

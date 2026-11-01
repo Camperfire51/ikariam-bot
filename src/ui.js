@@ -55,9 +55,10 @@
     .lv input[data-t="level"] { width:42px; font-weight:600; }
     .lv select { width:auto; flex:1; }
     .lv button { padding:1px 6px; }
+    ${IB.live.CSS}
   </style>
   <div class="panel collapsed" id="panel">
-    <div class="head" id="head"><span class="dot" id="dot"></span><b id="headTitle">Barbar Rotasyonu</b><label class="onoff" id="onoffLbl" title="Kapatınca sadece barbar botu duraklar; inşaat ve araştırma botları çalışmaya devam eder. Hiçbir kayıt silinmez, açınca kaldığı yerden devam eder."><input type="checkbox" id="onoff"> Açık</label><span id="toggle">▲</span></div>
+    <div class="head" id="head"><span class="dot" id="dot"></span><b id="headTitle">Barbar Rotasyonu</b><label class="onoff" id="onoffLbl" title="Kapatınca sadece barbar botu duraklar; inşaat ve araştırma botları çalışmaya devam eder. Hiçbir kayıt silinmez, açınca kaldığı yerden devam eder."><input type="checkbox" id="onoff"> Açık</label><span id="toggle">▲</span></div>${IB.live.HTML}
     <div class="body">
       <div class="row">
         <button id="add">+ Rotasyon ekle</button>
@@ -81,6 +82,7 @@
   </div>`;
 
   const $ = (id) => root.getElementById(id);
+  let liveTick = () => {}; // canlı satır (bkz. IB.live.attach); render sonrası geri sayımları hemen doldurur
   const FIELDS = ['originId', 'colonyId', 'maxLevel', 'leadMin', 'autoTrain', 'sendSpearmen'];
 
   function escapeHtml(s) {
@@ -225,11 +227,15 @@
         st.running && cfg.targetIslandName
           ? `${originName} → ${cfg.colonyName} · hedef: ${cfg.targetIslandName} · max seviye ${cfg.maxLevel}` + poolText
           : '';
-      const wake = st.running && st.nextAt ? `\nSonraki kontrol: ${new Date(st.nextAt).toLocaleTimeString('tr-TR')}` : '';
+      // Durum satırı renkli; sonraki kontrole kalan süre saniyede bir güncellenir (bkz. IB.live.attach).
       const statusEl = el.querySelector('[data-k="status"]');
-      statusEl.textContent = (st.running && paused ? 'DURAKLATILDI — açınca kaldığı yerden devam eder.\n' : '') + st.status + wake;
-      statusEl.classList.toggle('err', !st.running && !!st.stopReason);
+      const text = (st.running && paused ? 'DURAKLATILDI — açınca kaldığı yerden devam eder.\n' : '') + st.status;
+      const tone = !st.running ? (st.stopReason ? 'bad' : 'idle') : paused ? 'idle' : IB.live.tone(st.status);
+      statusEl.className = `status t-${tone}`;
+      statusEl.dataset.next = st.running && !paused && st.nextAt ? st.nextAt : 0;
+      statusEl.innerHTML = `${escapeHtml(text)}<span class="cd"></span>`;
     }
+    liveTick();
 
     const log = IB.getLog().slice(-150).reverse();
     $('log').innerHTML = log
@@ -401,6 +407,18 @@
       $('toggle').textContent = '▼';
     }
   } catch (e) {}
+  liveTick = IB.live.attach(root, () => {
+    const stopped = M.rotations.find((r) => !r.st.running && r.st.stopReason);
+    const cur = M.current === 'stock' ? 'asker havuzu' : M.current ? (M.get(M.current) || {}).label : null;
+    return {
+      paused: IB.isPaused('barbar'),
+      passive: M.passive,
+      running: M.running,
+      status: stopped ? `Durdu: ${stopped.label}: ${stopped.st.stopReason}` : 'Durdu',
+      current: cur,
+      items: M.rotations.filter((r) => r.st.running).map((r) => ({ label: r.label, status: r.st.status, nextAt: r.st.nextAt })),
+    };
+  });
   render();
 
   // Sayfa yenilendiyse ve çalışan rotasyon varsa devam et.

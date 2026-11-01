@@ -6,17 +6,25 @@ Bot kodu GitHub Pages'te durur (https://camperfire51.github.io/ikariam-bot/). Ch
 1. Zip'i açıp çıkan klasörü bilgisayarda kalıcı bir yere koy. Klasörü silme/taşıma.
 2. Chrome'da `chrome://extensions` adresini aç, sağ üstten **Geliştirici modu**nu aç.
 3. Eski bot eklentisi ya da eski yükleyici yüklüyse **kaldır** (ayarlar ve kayıtlar silinmez, oyunun sayfasında durur).
-4. **Paketlenmemiş öğe yükle** → o klasörü seç (içinde `manifest.json` ve `loader.js` olmalı). Aynı Chrome'a iki yükleyiciyi birden kurma.
+4. **Paketlenmemiş öğe yükle** → o klasörü seç (içinde `manifest.json`, `loader.js`, `bridge.js`, `popup.html`, `popup.js` olmalı). Aynı Chrome'a iki yükleyiciyi birden kurma.
 5. Oyun sekmesini yenile. Sol altta bot panelleri çıkar.
 6. Ayarlar → Performans → Bellek Tasarrufu'nda `ikariam.gameforge.com` adresini "her zaman etkin tut" listesine ekle (sekme uyutulursa bot durur).
 
 Güncelleme: yeni sürüm yayınlanınca açık oyun sekmesinin üstünde **"Bot güncellemesi var"** uyarısı çıkar (10 dakikada bir bakılır). **Yenile**'ye basmak ya da sayfayı yenilemek yeterli; çalışan botlar kaldığı yerden devam eder.
 
+## Modüller (eklenti penceresi)
+Chrome'un sağ üstündeki eklenti simgesine (yapboz → Ikariam Bot; sabitlemek için raptiye) tıklayınca modül listesi açılır: Barbar Rotasyonu, İnşaat Sırası, Araştırma Sırası, Deney Botu. **Kaldır** ile modül oyundan tamamen kalkar (paneli görünmez, hiç çalışmaz); **Ekle** ile geri gelir. Ayarlar, sıralar ve kayıtlar silinmez; eklenince kaldığı yerden devam eder. Değişince açık oyun sekmeleri kendiliğinden yenilenir. Seçim o bilgisayardaki Chrome'a özeldir. (Bu pencere yükleyici 1.4.0 ve sonrasında var.)
+
+Modüllerin dosyaları `modules.json`'da tanımlıdır; her dosya ya çekirdekte (`core`) ya da tek bir modülde olmalı (`release.js` kontrol eder).
+
+## Canlı durum
+Her panelin başlığının hemen altında, panel kapalıyken de görünen bir satır var: botun o an ne yaptığı ("Şu an: Nokron kontrol ediliyor…") ya da bir sonraki işleme kalan süre (saniye saniye geri sayım, saatiyle). Şehir/rotasyon satırlarında da aynı geri sayım durur. Renkler: **kırmızı** olumsuz (durdu, hata, kaynak/asker eksik, bulunamadı…), **yeşil** olumlu (çalışıyor, iş yapılıyor, gönderildi), **gri** nötr (durdu, duraklatıldı, bekliyor). Renk durum yazısından seçilir (`src/live.js`).
+
 ## Değişiklik ve yayınlama
 Her değişiklik bittiğinde doğrudan yayınlanır: `node release.js "ne değişti"` (ya da `YAYINLA.cmd`'ye çift tıkla). `version.json` yeni sürüm numarası ve `manifest.json`'daki dosya listesiyle yazılır, commit'lenip GitHub'a gönderilir. GitHub Pages birkaç dakika içinde yayına alır; herkesin açık oyun sekmesinde "Bot güncellemesi var → Yenile" çıkar. Ayrı bir test sürümü yoktur.
 
 Notlar:
-- Yeni bir `src/*.js` dosyası eklenirse `manifest.json`'daki listeye eklemek yeterli; yükleyici listeyi `version.json`'dan okur.
+- Yeni bir `src/*.js` dosyası eklenirse `manifest.json`'daki listeye ve `modules.json`'da çekirdeğe ya da bir modüle eklenir; yükleyici listeyi `version.json`'dan okur.
 - `manifest.json` (kök klasör) eski yöntemle yerel eklenti olarak da yüklenebilir, ama yükleyiciyle aynı tarayıcıda kullanma.
 - Depo herkese açıktır; içine şifre, oturum bilgisi ya da kişisel veri koyma. GitHub hesabında iki adımlı doğrulama açık olsun: buraya konan kod herkesin oyununda çalışır.
 

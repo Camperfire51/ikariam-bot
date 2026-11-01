@@ -250,6 +250,8 @@
             if ((this.nextAt[cityId] || 0) > Date.now()) continue;
             let waitSec;
             try {
+              this.current = cityId; // panelde "şu an" satırı için
+              emit();
               waitSec = await this.processCity(cityId);
               httpFailures = 0;
             } catch (e) {
@@ -274,6 +276,8 @@
           if (!this.running) break;
           emit();
 
+          this.current = null;
+
           const nexts = this.cities.map((c) => this.nextAt[c.cityId] || 0);
           const waitMs = nexts.length ? Math.min(...nexts) - Date.now() : 60000;
           await this.sleep(Math.min(60000, Math.max(1000, waitMs)));
@@ -281,6 +285,7 @@
       } finally {
         clearInterval(heartbeat);
         this._looping = false;
+        this.current = null;
         this.passive = false;
         if (!this.running) releaseLock();
         emit();

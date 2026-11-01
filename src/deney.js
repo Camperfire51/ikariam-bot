@@ -234,8 +234,13 @@
         );
         return wait;
       }
+      // Masraf ekrandan okunduysa kristal yetmiyorken istek gönderilmez.
+      if (a.cost && a.crystal < a.cost) {
+        this.setCityStatus(cityId, `${label}: kristal yetmiyor (${fmtNum(a.cost)} gerekli, şehirde ${fmtNum(Math.floor(a.crystal))} var), bekliyor.`);
+        return IB.rand(900, 1500);
+      }
 
-      if (a.action.kind === 'call') {
+      if (a.action.kind === 'call' || a.action.kind === 'form') {
         // İstek oyunun düğme fonksiyonundan çıkarıldı: ne gönderildiği bir kez günlüğe yazılır (kontrol için).
         const sig = JSON.stringify(a.action.params);
         if (this._callLogged !== sig) {

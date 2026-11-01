@@ -820,8 +820,42 @@
       return { params: null, info: info.join('; '), sources: srcs };
     }
 
+    // Akademinin gerçek deney ekranı (s75, 2026-11 dökümünden): kutular #accelResearchForm formunun içinde.
+    // Form: action=CityScreen, function=buyResearch, useAthenasScroll, payWithAmbrosia, cityId, position.
+    // Düğmeler: conductExperiment(0) = "Deney yap" (kristal), conductExperiment(1) = "Athena'nın parşömenini kullan"
+    // (indirimli; parşömen harcar, yoksa ambrosiayla satın aldırabilir). Bot sadece düz kristalli deneyi yapar:
+    // useAthenasScroll=0 ve payWithAmbrosia=0 her zaman zorla yazılır.
+    function experimentForm(doc) {
+      const form =
+        doc.querySelector('form#accelResearchForm') ||
+        [...doc.querySelectorAll('form')].find((f) => f.querySelector('input[name="function"][value="buyResearch"]'));
+      if (!form) return null;
+      const params = {};
+      for (const el of form.querySelectorAll('input[name]')) {
+        if (el.name === 'actionRequest' || el.type === 'button' || el.type === 'submit') continue;
+        params[el.name] = el.value;
+      }
+      if (params.function !== 'buyResearch') return null;
+      params.useAthenasScroll = '0';
+      params.payWithAmbrosia = '0';
+      const btn = form.querySelector('[onclick*="conductExperiment(0)"]');
+      const box = (btn && btn.closest('.experiment')) || form.querySelector('.experiment');
+      const costEl = box && box.querySelector('.cost-info span:not(.striked-cost):not(:first-child)');
+      return {
+        found: true,
+        call: null,
+        // Düğme yoksa ya da kapalıysa: bekleme süresi ya da kristal eksik (oyunun yazısı gösterilir).
+        action: btn && !isDisabled(btn) ? { kind: 'form', params, disabled: false } : null,
+        debug: null,
+        cost: costEl ? IB.parseGameInt(costEl.textContent) : null,
+        text: IB.stripTags(((box && box.innerHTML) || form.textContent || '').replace(/</g, ' <')).replace(/\s+/g, ' ').trim().slice(0, 300),
+      };
+    }
+
     function readExperiment(html) {
       const doc = IB.parseHtml(html);
+      const known = experimentForm(doc);
+      if (known) return known;
       const boxes = [...doc.querySelectorAll('.experiment')];
       const pick = (actions) =>
         actions.find((a) => !a.disabled && a.params.action) ||
@@ -902,6 +936,8 @@
         if (!next || !next.params.action) return { errors: ['Deney onay penceresinde kristalli deney düğmesi bulunamadı.'], successes: [] };
         params = next.params;
       }
+      // Son güvenlik: kristalli deney formunda parşömen ve ambrosia hiçbir koşulda kullanılmaz.
+      if (params.function === 'buyResearch') params = { ...params, useAthenasScroll: '0', payWithAmbrosia: '0' };
       const r = await request(
         { ...params, cityId: params.cityId || cityId, backgroundView: 'city', currentCityId: cityId, templateView: 'academy' },
         { post: true }

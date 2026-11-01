@@ -1,6 +1,7 @@
 // Bot menüsü: sol altta duran tek çubuk. Tıklayınca bütün bot panelleri birlikte gizlenir ya da gösterilir; paneller
 // açıkken çubuğun üstüne dizilir. Kapalıyken de her botun durum rengi (bkz. src/live.js) çubukta görünür.
 // Seçim (açık/kapalı) sayfa yenilense de korunur. Botlar gizliyken de çalışmaya devam eder.
+// Çubuktaki "Tümü" tiki bütün botları tek seferde duraklatır / eski hallerine döndürür.
 (() => {
   const IB = window.IkaBot;
   if (!window.ikariam || !ikariam.model || window.top !== window) return;
@@ -32,6 +33,8 @@
       .bar { font: 12px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color:#1d1d1d; background:#ffffff;
         border:1px solid #a58552; border-radius:8px; box-shadow:0 4px 18px rgba(0,0,0,.35); padding:5px 10px;
         display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none; width:370px; }
+      .all { display:flex; align-items:center; gap:3px; font-size:11px; cursor:pointer; white-space:nowrap; }
+      .all.off { color:#b3392f; font-weight:600; }
       b { color:#1d1d1d; }
       .bots { flex:1; display:flex; gap:9px; flex-wrap:wrap; }
       .bot { display:flex; align-items:center; gap:4px; font-size:11px; color:#444444; }
@@ -44,6 +47,7 @@
     </style>
     <div class="bar" id="bar" title="Bütün bot panellerini gizle / göster (botlar çalışmaya devam eder)">
       <b>Ikariam Bot</b><span class="bots" id="bots"></span>
+      <label class="all" id="allLbl" title="Kapatınca bütün botlar duraklar. Açınca sadece bu düğmenin duraklattığı botlar devam eder; zaten kapalı olan bot kapalı kalır. Hiçbir kayıt silinmez."><input type="checkbox" id="all"> <span id="allTxt">Tümü açık</span></label>
       <button id="copy" title="Bütün botların günlüklerini, durumlarını ve ayarlarını tek metin olarak panoya kopyalar (sorun bildirmek için). Oturum anahtarı eklenmez.">📋 Günlük</button>
       <span class="arrow" id="arrow"></span>
     </div>`;
@@ -80,6 +84,49 @@
   }
   setInterval(tick, 1000);
   setTimeout(tick, 500);
+
+  // ---------- Hepsini duraklat ----------
+  // Kapatınca o an açık olan botlar duraklatılır ve hangileri olduğu saklanır; açınca sadece onlar devam eder
+  // (önceden kendi tikiyle kapatılmış bot kapalı kalır). Kayıt tüm sekmelerde ortaktır ve yenilemede korunur.
+  const ALL_KEY = 'ikabot.pauseAll';
+  const pausedByAll = () => {
+    try {
+      const v = JSON.parse(localStorage.getItem(ALL_KEY));
+      return Array.isArray(v) ? v : null;
+    } catch (e) {
+      return null;
+    }
+  };
+  function renderAll() {
+    const off = !!pausedByAll();
+    $('all').checked = !off;
+    $('allLbl').className = off ? 'all off' : 'all';
+    $('allTxt').textContent = off ? 'Tümü duraklatıldı' : 'Tümü açık';
+  }
+  function setAll(on) {
+    const list = pausedByAll();
+    if (on) {
+      if (!list) return;
+      try {
+        localStorage.removeItem(ALL_KEY);
+      } catch (e) {}
+      for (const b of list) IB.setPaused(b, false);
+    } else {
+      if (list) return;
+      const running = IB.BOTS.filter((b) => !IB.isPaused(b));
+      try {
+        localStorage.setItem(ALL_KEY, JSON.stringify(running));
+      } catch (e) {}
+      for (const b of running) IB.setPaused(b, true);
+    }
+    renderAll();
+  }
+  $('allLbl').addEventListener('click', (e) => e.stopPropagation()); // panelleri gizleyip göstermesin
+  $('all').addEventListener('change', () => setAll($('all').checked));
+  window.addEventListener('storage', (e) => {
+    if (e.key === ALL_KEY) renderAll();
+  });
+  renderAll();
 
   // ---------- Tanı dökümü ("📋 Günlük") ----------
   // Sorun bildirmek için tek metin: sürüm, her botun canlı durumu ve bu oyun sayfasındaki bütün bot kayıtları

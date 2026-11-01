@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Ikariam Bot (yükleyici)",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Ikariam botunun güncel sürümünü her sayfa açılışında GitHub Pages'ten yükler. Güncelleme için sayfayı yenilemek yeterli.",
   "content_scripts": [
     {

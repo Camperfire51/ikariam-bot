@@ -1,17 +1,17 @@
 {
-  "version": "2026.11.01-1609",
+  "version": "2026.11.01-1631",
   "files": [
-    "src/api.js",
-    "src/table.js",
-    "src/game.js",
-    "src/rotation.js",
-    "src/ui.js",
-    "src/build.js",
-    "src/build-ui.js",
-    "src/research.js",
-    "src/research-ui.js",
-    "src/deney.js",
-    "src/deney-ui.js",
-    "src/update.js"
+    "prod/src/api.js",
+    "prod/src/table.js",
+    "prod/src/game.js",
+    "prod/src/rotation.js",
+    "prod/src/ui.js",
+    "prod/src/build.js",
+    "prod/src/build-ui.js",
+    "prod/src/research.js",
+    "prod/src/research-ui.js",
+    "prod/src/deney.js",
+    "prod/src/deney-ui.js",
+    "prod/src/update.js"
   ]
 }

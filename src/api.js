@@ -156,6 +156,95 @@
     if (IB.isPaused(bot)) throw new GameError('Bot duraklatıldı.', 'paused');
   };
 
+  // ---------- Oyuncuyla çakışmama ----------
+  // Oyun "seçili şehri" sunucuda tutar: botun başka şehre ait istekleri onu değiştirir ve oyuncunun bir sonraki
+  // tıklamasında sayfa o şehre atlar. Bu yüzden bot bir işe başlamadan önce oyuncunun bir süre (herhangi bir oyun
+  // sekmesinde) dokunmamasını bekler; iş yarıda kesilmez. İş bitince sunucudaki seçili şehir, oyuncunun sayfada
+  // gördüğü şehre geri alınır. Bot panellerine tıklamak oyun oynamak sayılmaz.
+  const PLAYER_KEY = 'ikabot.player';
+  const IDLE_MS = 20000; // oyuncu bu kadar süredir dokunmuyorsa bot işe başlar
+  const MAX_WAIT_MS = 60000; // oyuncu hiç durmasa da bot en fazla bu kadar bekler
+  const SETTLE_MS = 3000; // botun son isteğinden bu kadar sonra iş bitmiş sayılır
+  let lastInput = 0;
+  const pageCityId = () => {
+    try {
+      const r = ikariam.model.relatedCityData || {};
+      const m = String(r.selectedCity || r.selectedCityId || '').match(/\d+/);
+      return m ? Number(m[0]) : null;
+    } catch (e) {
+      return null;
+    }
+  };
+  // Oyuncunun en son dokunduğu an ve o sekmede görünen şehir: tüm sekmelerde ortak.
+  function storedPlayer() {
+    try {
+      return JSON.parse(localStorage.getItem(PLAYER_KEY)) || null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function publishPlayer() {
+    if (!lastInput || !document.hasFocus()) return;
+    const city = pageCityId();
+    const s = storedPlayer();
+    if (s && s.t === lastInput && s.city === city) return;
+    try {
+      localStorage.setItem(PLAYER_KEY, JSON.stringify({ t: lastInput, city }));
+    } catch (e) {}
+  }
+  function player() {
+    const s = storedPlayer();
+    if (s && s.t > lastInput) return s;
+    return { t: lastInput, city: pageCityId() };
+  }
+  const onInput = (e) => {
+    // Gölge kutudaki tıklamalar kutunun kendisine yeniden hedeflenir: bot panelleri ikabot-* kimlikli.
+    if (e.target && String(e.target.id || '').startsWith('ikabot-')) return;
+    lastInput = Date.now();
+    publishPlayer();
+  };
+  for (const ev of ['pointerdown', 'keydown', 'wheel']) window.addEventListener(ev, onInput, true);
+  setInterval(publishPlayer, 2000); // tıklamadan sonra değişen şehir de yazılsın
+
+  let serverCity = null; // botun son yanıtına göre sunucudaki seçili şehir
+  let botPending = 0;
+  let ready = null; // bu işin başlama izni (oyuncu durana kadar bekler)
+  let settleTimer = null;
+  async function waitForPlayer() {
+    const start = Date.now();
+    for (;;) {
+      const idle = Date.now() - player().t;
+      const waited = Date.now() - start;
+      if (idle >= IDLE_MS || waited >= MAX_WAIT_MS) return;
+      await sleep(Math.min(IDLE_MS - idle, MAX_WAIT_MS - waited) + 50);
+    }
+  }
+  function botDone() {
+    botPending--;
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(settle, SETTLE_MS);
+  }
+  async function settle() {
+    settleTimer = null;
+    if (botPending > 0) return; // biten istek zamanlayıcıyı yeniden kurar
+    ready = null;
+    const city = player().city;
+    if (!city || city === serverCity || !IB.uiGame) return;
+    try {
+      await IB.uiGame.changeCity(city, serverCity || city);
+    } catch (e) {}
+  }
+  // Bot isteği: işin ilk isteği oyuncunun durmasını bekler, sonrakiler beklemeden sıraya girer.
+  function botRequest(bot, send) {
+    if (!bot) return send();
+    botPending++;
+    if (!ready) ready = waitForPlayer();
+    return ready.then(send).finally(botDone);
+  }
+  const noteCity = (resp) => {
+    if (resp.selectedCityId) serverCity = resp.selectedCityId;
+  };
+
   let lastRequestAt = 0;
   let chain = Promise.resolve();
 
@@ -197,18 +286,20 @@
     if (!Array.isArray(data)) throw new GameError('Beklenmeyen sunucu yanıtı.', 'session');
     const resp = new GameResponse(data);
     if (resp.global.actionRequest) storeToken(resp.global.actionRequest);
+    noteCity(resp);
     return resp;
   }
 
   // Tüm istekler sıraya girer; token yarışını önler.
-  IB.request = (params, opts) => {
-    const run = chain.then(() => rawRequest(params, opts));
-    chain = run.catch(() => {});
-    return run;
-  };
+  IB.request = (params, opts) =>
+    botRequest(opts && opts.bot, () => {
+      const run = chain.then(() => rawRequest(params, opts));
+      chain = run.catch(() => {});
+      return run;
+    });
 
   // Ajax olmayan tam sayfa (ada görünümü gibi) içindeki ajax.Responder verisini döndürür.
-  IB.requestFullPage = (params, { bot = null } = {}) => {
+  IB.requestFullPage = (params, { bot = null } = {}) => botRequest(bot, () => {
     const run = chain.then(async () => {
       pauseGate(bot);
       const gap = 800 + Math.random() * 1200;
@@ -223,11 +314,12 @@
       if (!m) throw new GameError('Sayfa verisi okunamadı: oturum düşmüş ya da captcha çıkmış olabilir.', 'session');
       const resp = new GameResponse(JSON.parse(m[1]));
       if (resp.global.actionRequest) storeToken(resp.global.actionRequest);
+      noteCity(resp);
       return resp;
     });
     chain = run.catch(() => {});
     return run;
-  };
+  });
 
   IB.parseHtml = (html) => new DOMParser().parseFromString(html || '', 'text/html');
 

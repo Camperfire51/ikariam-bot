@@ -171,7 +171,7 @@
       const p = city.positions[item.position];
       if (!p || buildingKey(p) !== item.building) {
         this.setCityStatus(cityId, `${label}: bina bu yerde bulunamadı. Sırayı düzelt (iş silinmeden sonrakine geçilmez).`);
-        return 600;
+        return 1800;
       }
 
       if (p.level >= item.targetLevel && !p.isBusy) {
@@ -194,7 +194,7 @@
 
       if (p.canUpgrade === false) {
         this.setCityStatus(cityId, `${label}: malzeme yetersiz (seviye ${p.level}), bekliyor.`);
-        return IB.rand(150, 300);
+        return IB.rand(900, 1800);
       }
 
       const errors = await G.upgradeBuilding({ cityId, position: item.position, level: p.level, building: item.building });
@@ -202,7 +202,7 @@
         const text = `${label}: yapılamadı (${errors.join(' / ')}), bekliyor.`;
         if (this.cityStatus[cityId] !== text) log(text, 'warn');
         this.setCityStatus(cityId, text);
-        return IB.rand(150, 300);
+        return IB.rand(900, 1800);
       }
 
       // Oyun hata vermeden reddedebilir: şehri tekrar okuyup inşaatın başladığını doğrula.
@@ -217,7 +217,7 @@
       const text = `${label}: oyun kabul etmedi (büyük ihtimalle malzeme yok), bekliyor.`;
       if (this.cityStatus[cityId] !== text) log(text, 'warn');
       this.setCityStatus(cityId, text);
-      return IB.rand(150, 300);
+      return IB.rand(900, 1800);
     },
 
     async loop() {
@@ -280,7 +280,7 @@
               }
             }
             if (waitSec === null) continue;
-            waitSec = Math.min(1800, Math.max(2, Number(waitSec) || 60));
+            waitSec = Math.min(21600, Math.max(2, Number(waitSec) || 60));
             this.nextAt[cityId] = Date.now() + waitSec * 1000;
           }
           if (!this.running) break;

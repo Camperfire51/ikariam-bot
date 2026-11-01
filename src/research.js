@@ -182,7 +182,7 @@
       const ws = await findWorkshop(cityId);
       if (!ws || ws.index !== item.position) {
         this.setCityStatus(cityId, `${label}: bu şehirde mucit atölyesi bulunamadı. Sırayı düzelt (iş silinmeden sonrakine geçilmez).`);
-        return 600;
+        return 1800;
       }
 
       const tab = G.workshopTab(item.unitId);
@@ -191,13 +191,13 @@
       const up = unit && unit[item.upgradeType];
       if (!up) {
         this.setCityStatus(cityId, `${label}: bu araştırma atölyede bulunamadı. Sırayı düzelt.`);
-        return 600;
+        return 1800;
       }
 
       // Atölyede araştırma varsa (bot ya da elle başlatılmış) bitmesini bekle.
       const untilDone = (x) => {
         const left = x.progressEnd ? x.progressEnd - Date.now() / 1000 : 0;
-        return (left > 0 ? left : IB.rand(600, 900)) + IB.rand(15, 45);
+        return (left > 0 ? left : IB.rand(1800, 2700)) + IB.rand(15, 45);
       };
       if (w.inProgress) {
         const wait = untilDone(w);
@@ -221,7 +221,7 @@
 
       if (up.error) {
         this.warnOnce(cityId, `${label}: ${up.error} (seviye ${up.level}), bekliyor.`);
-        return IB.rand(300, 600);
+        return IB.rand(1200, 1800);
       }
       if (w.gold < up.next.gold || w.crystal < up.next.crystal) {
         this.setCityStatus(
@@ -229,13 +229,13 @@
           `${label}: kaynak yetersiz (seviye ${up.next.level} için ${fmtNum(up.next.gold)} altın, ${fmtNum(up.next.crystal)} kristal gerekiyor; ` +
             `şehirde ${fmtNum(Math.floor(w.crystal))} kristal, toplam ${fmtNum(Math.floor(w.gold))} altın var), bekliyor.`
         );
-        return IB.rand(150, 300);
+        return IB.rand(900, 1800);
       }
 
       const errors = await G.startWorkshopUpgrade({ cityId, position: item.position, unitId: item.unitId, upgradeType: item.upgradeType });
       if (errors.length) {
         this.warnOnce(cityId, `${label}: yapılamadı (${errors.join(' / ')}), bekliyor.`);
-        return IB.rand(150, 300);
+        return IB.rand(900, 1800);
       }
 
       // Oyun hata vermeden reddedebilir: atölyeyi tekrar okuyup araştırmanın başladığını doğrula.
@@ -250,7 +250,7 @@
         return wait;
       }
       this.warnOnce(cityId, `${label}: oyun kabul etmedi (büyük ihtimalle kaynak yok), bekliyor.`);
-      return IB.rand(150, 300);
+      return IB.rand(900, 1800);
     },
 
     async loop() {
@@ -313,7 +313,7 @@
               }
             }
             if (waitSec === null) continue;
-            waitSec = Math.min(1800, Math.max(2, Number(waitSec) || 60));
+            waitSec = Math.min(21600, Math.max(2, Number(waitSec) || 60));
             this.nextAt[cityId] = Date.now() + waitSec * 1000;
           }
           if (!this.running) break;

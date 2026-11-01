@@ -12,7 +12,11 @@
   const LOG_KEY = 'ikabot.barbar.log';
   const LOCK_KEY = 'ikabot.barbar.lock';
   const TAB_ID = Math.random().toString(36).slice(2);
-  const STOCK_CHECK_MS = [150000, 240000]; // asker havuzunun düzenli kontrol aralığı: rastgele 2,5-4 dk
+  const STOCK_CHECK_MS = [900000, 1500000]; // asker havuzunun düzenli kontrol aralığı: rastgele 15-25 dk
+  const SPEAR_CHECK_MS = [1800000, 3000000]; // sömürgedeki mızrakçılara bakma aralığı: rastgele 30-50 dk
+  // Bir rotasyonun iki kontrolü arasındaki en uzun bekleme. Zamanı bilinen işler (gönderim anı, dönen gemiler)
+  // tam vaktinde yapılır; bu sınır sadece arada boşuna bakılmasını önler.
+  const MAX_WAIT_SEC = 1800;
   const AHEAD_ROUNDS = 3; // asker havuzu: sıradaki saldırı dahil bu kadar turun askeri, tur başına bir kışla emriyle basılır
   const QUEUE_MAX = 3; // kışla kuyruğu en fazla 3 emir alır
 
@@ -584,7 +588,7 @@
 
     // ---------- Sömürgedeki mızrakçılar ----------
     // Sömürgede ne kadar mızrakçı basılmışsa hepsi kaynak şehre konuşlandırılır. Başka hiçbir şey yapılmaz.
-    // 2,5-4 dk'da bir bakılır. Gemi yetmezse ya da oyun reddederse rotasyon durmaz, sonra tekrar denenir.
+    // 30-50 dk'da bir bakılır. Gemi yetmezse ya da oyun reddederse rotasyon durmaz, sonra tekrar denenir.
     // force: kontrol aralığını beklemeden bak (durmadan önce). Döner: { sent, left } — left: sömürgede kalan mızrakçı.
     async sendSpearmen(force = false) {
       const { cfg, st } = this;
@@ -592,7 +596,7 @@
       if (!cfg.sendSpearmen) return none;
       if (!force && Date.now() - (this._spearAt || 0) < (this._spearGap || 0)) return none;
       this._spearAt = Date.now();
-      this._spearGap = IB.rand(...STOCK_CHECK_MS);
+      this._spearGap = IB.rand(...SPEAR_CHECK_MS);
 
       const amount = (u) => (u[IB.SPEARMAN] && u[IB.SPEARMAN].amount) || 0;
       const n = amount(await G.units(cfg.colonyId));
@@ -677,7 +681,7 @@
           this.save();
           IB.notify(`Eksik asker (${this.label})`, `Seviye ${level} için: ${desc}`);
         }
-        return 300;
+        return 900;
       }
       this.needStockCheck = true;
       const pool = this.mgr.stockInfo[cfg.originId];
@@ -685,8 +689,8 @@
       const why = pool && pool.problem ? ` Basım yapılamadı: ${pool.problem}` : '';
       const wait = pool && pool.queueEndsIn ? 'eğitimdekiler bekleniyor' : 'basım bekleniyor';
       this.setStatus(`Seviye ${level} için eksik asker: ${desc}; ${wait}.${q}${why}`);
-      const nextBatch = pool && pool.nextBatchIn ? pool.nextBatchIn + 10 : 300;
-      return Math.min(300, nextBatch);
+      const nextBatch = pool && pool.nextBatchIn ? pool.nextBatchIn + 10 : 900;
+      return Math.min(MAX_WAIT_SEC, nextBatch);
     }
   }
 
@@ -1112,9 +1116,9 @@
               }
             }
             if (!r.st.running) continue;
-            waitSec = Math.min(300, Math.max(10, Number(waitSec) || 60));
-            // Uzun beklemeler rastgele %0-15 kısaltılır (asla uzatılmaz; gönderim anı kaçmasın).
-            if (waitSec > 90) waitSec *= 0.85 + Math.random() * 0.15;
+            waitSec = Math.min(MAX_WAIT_SEC, Math.max(10, Number(waitSec) || 60));
+            // Uzun beklemeler rastgele en fazla 1 dk kısaltılır (asla uzatılmaz; gönderim anı kaçmasın).
+            if (waitSec > 90) waitSec -= Math.random() * Math.min(60, waitSec * 0.15);
             r.st.nextAt = Date.now() + waitSec * 1000;
             this.save();
           }
@@ -1131,7 +1135,7 @@
 
           const nexts = this.rotations.filter((r) => r.st.running).map((r) => r.st.nextAt || 0);
           for (const o of this.stockOrigins()) nexts.push((this._stockAt[o] || 0) + this.stockGap(o));
-          const waitMs = Math.min(300000, Math.max(1000, Math.min(...nexts) - Date.now()));
+          const waitMs = Math.min(MAX_WAIT_SEC * 1000, Math.max(1000, Math.min(...nexts) - Date.now()));
           await this.sleep(waitMs);
         }
       } finally {

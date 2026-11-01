@@ -225,7 +225,7 @@
       // Düğme yok ya da kapalı: bekleme süresi sürüyor ya da kristal yetmiyor. Oyunun yazısı olduğu gibi gösterilir.
       if (!a.action) {
         const left = a.cooldownEnd ? a.cooldownEnd - Date.now() / 1000 : 0;
-        const wait = (left > 0 ? left : IB.rand(600, 1200)) + IB.rand(15, 45);
+        const wait = (left > 0 ? left : IB.rand(1200, 1800)) + IB.rand(15, 45);
         const when = left > 0 ? `, ${fmtClock(Date.now() + wait * 1000)} civarı tekrar bakılacak` : '';
         this.setCityStatus(
           cityId,
@@ -251,7 +251,7 @@
       const res = await G.doExperiment(cityId, a.action);
       if (res.errors.length) {
         this.warnOnce(cityId, `${label}: deney yapılamadı (${res.errors.join(' / ')}), bekliyor.`);
-        return IB.rand(600, 1200);
+        return IB.rand(1200, 1800);
       }
 
       // Oyun hata vermeden reddedebilir: akademiyi tekrar okuyup deneyin yapıldığını doğrula.
@@ -271,7 +271,7 @@
         return IB.rand(1200, 1800);
       }
       this.warnOnce(cityId, `${label}: oyun deneyi kabul etmedi (büyük ihtimalle kristal yetmiyor), bekliyor.`);
-      return IB.rand(600, 1200);
+      return IB.rand(1200, 1800);
     },
 
     async loop() {
@@ -334,7 +334,7 @@
               }
             }
             if (waitSec === null) continue;
-            waitSec = Math.min(1800, Math.max(2, Number(waitSec) || 60));
+            waitSec = Math.min(21600, Math.max(2, Number(waitSec) || 60));
             this.nextAt[cityId] = Date.now() + waitSec * 1000;
           }
           if (!this.running) break;

@@ -694,6 +694,132 @@
       return parts.join('\n').slice(0, 2500);
     }
 
+    // ---------- Fonksiyon çağıran deney düğmeleri ----------
+    // Akademideki düğmeler onclick="conductExperiment(0)" / "(1)" biçiminde: biri kristalli, biri ambrosialı.
+    // Hangisinin kristalli olduğu düğmenin kendi bölümünden anlaşılır: iki düğmeyi ayıran en büyük kapsayıcıda
+    // ambrosia/premium geçmeyen tek bölüm kristallidir. Belirsizse hiçbiri seçilmez.
+    const CALL_RE = /^\s*(?:return\s+)?([A-Za-z_$][\w$]*)\s*\(([^()]*)\)/;
+    function parseArgs(text) {
+      try {
+        return JSON.parse(`[${text.replace(/'/g, '"')}]`);
+      } catch (e) {
+        return null;
+      }
+    }
+    function crystalCall(doc, boxes) {
+      let area = boxes[0];
+      while (area.parentElement && !boxes.every((b) => area.contains(b))) area = area.parentElement;
+      for (let i = 0; i < 2 && area.parentElement && area.parentElement !== doc.body; i++) area = area.parentElement;
+      const cands = [...area.querySelectorAll('[onclick]')]
+        .map((el) => {
+          const m = (el.getAttribute('onclick') || '').match(CALL_RE);
+          return m && /xperiment|deney/i.test(m[1] + ' ' + (el.value || '') + ' ' + el.textContent) ? { el, name: m[1], args: parseArgs(m[2]) } : null;
+        })
+        .filter((c) => c && c.args);
+      if (!cands.length) return null;
+      // Her düğmenin bölümü: diğer düğmeleri içermeyen en büyük atası.
+      const section = (c) => {
+        let s = c.el;
+        while (s.parentElement && s.parentElement !== area && !cands.some((o) => o !== c && s.parentElement.contains(o.el))) s = s.parentElement;
+        return s;
+      };
+      const crystal = cands.filter((c) => !PREMIUM.test(section(c).outerHTML) && !PREMIUM.test(c.el.outerHTML));
+      const list = cands.map((c) => `${c.name}(${c.args.join(',')})${PREMIUM.test(section(c).outerHTML) ? ' [ambrosia]' : ''}`).join(' · ');
+      if (crystal.length !== 1) return { name: cands[0].name, args: null, note: `Fonksiyonlu düğmeler: ${list} — kristalli olan ayırt edilemedi, basılmadı.` };
+      const c = crystal[0];
+      return { name: c.name, args: c.args, disabled: isDisabled(c.el), note: `Fonksiyonlu düğmeler: ${list} — kristalli: ${c.name}(${c.args.join(',')})` };
+    }
+
+    // Oyunun fonksiyonunun kaynağı: akademi yanıtındaki betikler (HTML'deki <script>'ler ve yanıttaki diğer metinler),
+    // yoksa sayfada tanımlı aynı adlı fonksiyon.
+    function functionSources(name, r) {
+      const out = [];
+      const def = new RegExp(`function\\s+${name}\\s*\\(|${name}\\s*[:=]\\s*function`);
+      const addText = (s) => {
+        if (typeof s !== 'string' || !s.includes(name) || !def.test(s)) return;
+        if (/<script/i.test(s)) for (const sc of IB.parseHtml(s).querySelectorAll('script')) addText(sc.textContent);
+        else out.push(s);
+      };
+      const walk = (v, depth) => {
+        if (depth > 6 || v == null) return;
+        if (typeof v === 'string') addText(v);
+        else if (typeof v === 'object') for (const x of Object.values(v)) walk(x, depth + 1);
+      };
+      walk(r.data, 0);
+      if (!out.length && typeof window[name] === 'function') out.push(`function ${name}${String(window[name]).replace(/^[^(]*/, '')}`);
+      return [...new Set(out)];
+    }
+
+    // Oyunun fonksiyonunu kum havuzunda çalıştırıp göndereceği istek adreslerini yakalar. Fonksiyonun gördüğü her
+    // dış nesne (ikariam, $, document, ajaxHandlerCall…) sahtedir: hiçbir şey gönderilmez, ekranda bir şey açılmaz.
+    // Fonksiyona verilen geri çağrılar (ör. onay penceresinin "evet"i) çalıştırılır ki içlerindeki istek de yakalansın.
+    const SANDBOX_REAL = new Set(['undefined', 'NaN', 'Infinity', 'Math', 'JSON', 'String', 'Number', 'Boolean', 'Array', 'Object',
+      'Date', 'RegExp', 'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'encodeURIComponent', 'decodeURIComponent', 'escape',
+      'unescape', 'eval', 'arguments', '__sb', '__src', '__args', '__reset']);
+    function captureRequests(src, name, args) {
+      const urls = [];
+      const called = new Set();
+      const note = (v) => {
+        if (typeof v === 'string' && /(?:^|[?&])(action|view)=/.test(v)) urls.push(v);
+        else if (v && typeof v === 'object' && typeof v.action === 'string') urls.push('?' + new URLSearchParams(Object.entries(v).map(([k, x]) => [k, String(x)])));
+        else if (v && typeof v === 'object' && v.data && typeof v.data === 'object') note({ ...v.data, ...(typeof v.url === 'string' ? Object.fromEntries(new URLSearchParams(v.url.split('?')[1] || '')) : {}) });
+      };
+      const fakes = new WeakSet(); // sahte nesneler geri çağrı sayılmaz (yoksa birbirini sonsuza kadar çağırır)
+      let steps = 0; // kaçak döngülere karşı üst sınır
+      const fake = () => {
+        const p = new Proxy(function () {}, {
+          get: (t, p) => (p === Symbol.toPrimitive ? () => '' : p === 'length' ? 0 : p === 'then' ? undefined : fake()),
+          set: (t, p, v) => (note(v), true),
+          apply: (t, self, a) => {
+            if (++steps > 5000) throw new Error('kum havuzu sınırı');
+            for (const x of a) {
+              note(x);
+              if (typeof x === 'function' && !fakes.has(x) && !called.has(x)) {
+                called.add(x);
+                try {
+                  x.call(fake(), fake());
+                } catch (e) {}
+              }
+            }
+            return fake();
+          },
+          construct: () => fake(),
+        });
+        fakes.add(p);
+        return p;
+      };
+      const sb = new Proxy({}, {
+        has: (t, p) => typeof p === 'string' && p !== name && !SANDBOX_REAL.has(p),
+        get: (t, p) => (p === Symbol.unscopables ? undefined : fake()),
+        set: (t, p, v) => (note(v), true),
+      });
+      // eslint-disable-next-line no-new-func
+      const run = new Function('__sb', '__src', '__args', '__reset',
+        `with (__sb) { eval(__src); __reset(); return typeof ${name} === 'function' ? (${name}.apply(null, __args), 1) : 0; }`);
+      let ok = 0;
+      try {
+        ok = run(sb, src, args, () => (urls.length = 0));
+      } catch (e) {}
+      return ok ? urls : null;
+    }
+
+    // Fonksiyonlu düğmenin isteği: { params } ya da bulunamadıysa null. info: tanı dökümü için kısa açıklama.
+    function resolveCall(call, r) {
+      const srcs = functionSources(call.name, r);
+      const info = [`${call.name} kaynağı: ${srcs.length ? srcs.map((s) => s.length + ' karakter').join(', ') : 'bulunamadı'}`];
+      for (const src of srcs) {
+        const urls = captureRequests(src, call.name, call.args);
+        if (!urls) continue;
+        info.push(`yakalanan istekler: ${urls.map((u) => u.replace(/actionRequest=[^&]*/g, 'actionRequest=…')).join(' | ') || 'yok'}`);
+        for (const u of urls) {
+          const params = queryParams(u.includes('?') ? u : '?' + u);
+          if (!params || !params.action || NOT_EXPERIMENT.test(params.action) || PREMIUM.test(JSON.stringify(params))) continue;
+          return { params, info: info.join('; '), sources: srcs };
+        }
+      }
+      return { params: null, info: info.join('; '), sources: srcs };
+    }
+
     function readExperiment(html) {
       const doc = IB.parseHtml(html);
       const boxes = [...doc.querySelectorAll('.experiment')];
@@ -715,9 +841,13 @@
         }
       }
       const normal = boxes.slice(0, 1);
+      // Düğme bir adres değil de oyunun bir fonksiyonunu çağırıyorsa (ör. onclick="conductExperiment(0)"):
+      // kristalli düğmenin çağrısı bulunur, isteği G.academy oyunun kendi fonksiyonundan çıkarır (bkz. resolveCall).
+      const call = action || !boxes.length ? null : crystalCall(doc, boxes);
       return {
         found: normal.length > 0 || actions.length > 0,
-        debug: action ? null : describeExperiment(doc, boxes),
+        call,
+        debug: action ? null : describeExperiment(doc, boxes) + (call && call.note ? `\n${call.note}` : ''),
         // Gerçek işlem (action=...) önce; sadece pencere açan bağlantı ancak adında "experiment" geçiyorsa.
         action,
         text: IB.stripTags(((normal[0] && normal[0].innerHTML) || '').replace(/</g, ' <')).slice(0, 300),
@@ -734,6 +864,20 @@
       const stamps = futureStamps(r.cmd('ingameCounterData'), timers);
       const h = r.header;
       const exp = readExperiment(r.html);
+      if (!exp.action && exp.call && exp.call.args) {
+        if (exp.call.disabled) {
+          // Kristalli düğme kapalı: bekleme süresi ya da kristal eksik; düğme doğru okundu, döküm gerekmez.
+          exp.debug = null;
+        } else {
+          const res = resolveCall(exp.call, r);
+          exp.callInfo = res.info;
+          exp.callSources = res.sources;
+          if (res.params) {
+            exp.action = { kind: 'call', params: res.params, disabled: false };
+            exp.debug = null;
+          } else exp.debug += `\n${res.info}`;
+        }
+      }
       if (exp.debug) {
         const keys = Object.keys(t).filter((k) => /xperiment/i.test(k));
         if (keys.length) exp.debug += `\nŞablon: ${keys.map((k) => `${k}=${IB.stripTags(JSON.stringify(t[k])).slice(0, 80)}`).join(' | ')}`.slice(0, 800);

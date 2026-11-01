@@ -90,6 +90,14 @@
         cooldownEnd: a.cooldownEnd,
         found: a.found,
         html: clean(experimentArea(a.raw.html)),
+        // Fonksiyonlu düğme: yakalanan istekler ve fonksiyonun kaynağı; kaynak bulunamadıysa deneyle ilgili betikler.
+        call: a.callInfo || null,
+        scripts: clean(
+          (a.callSources && a.callSources.length
+            ? a.callSources
+            : [...IB.parseHtml(a.raw.html).querySelectorAll('script')].map((s) => s.textContent).filter((t) => /xperiment/i.test(t))
+          ).join('\n----\n')
+        ).slice(0, 8000),
         template: clean(JSON.stringify(tpl)).slice(0, 5000),
       };
       localStorage.setItem(DUMP_KEY, JSON.stringify(all));
@@ -227,6 +235,14 @@
         return wait;
       }
 
+      if (a.action.kind === 'call') {
+        // İstek oyunun düğme fonksiyonundan çıkarıldı: ne gönderildiği bir kez günlüğe yazılır (kontrol için).
+        const sig = JSON.stringify(a.action.params);
+        if (this._callLogged !== sig) {
+          this._callLogged = sig;
+          log(`${label}: kristalli deney düğmesinin isteği: ${Object.entries(a.action.params).map(([k, v]) => `${k}=${v}`).join('&')}`);
+        }
+      }
       const res = await G.doExperiment(cityId, a.action);
       if (res.errors.length) {
         this.warnOnce(cityId, `${label}: deney yapılamadı (${res.errors.join(' / ')}), bekliyor.`);

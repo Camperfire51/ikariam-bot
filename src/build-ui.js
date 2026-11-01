@@ -15,10 +15,12 @@
   function place() {
     const other = document.getElementById('ikabot-host');
     const h = other ? other.getBoundingClientRect().height : 0;
-    host.style.bottom = (h ? 12 + h + 8 : 12) + 'px';
+    const base = IB.dock ? IB.dock.base() : 12; // bot menüsünün üstü
+    host.style.bottom = (h ? base + h + 8 : base) + 'px';
   }
   const other = document.getElementById('ikabot-host');
   if (other && window.ResizeObserver) new ResizeObserver(place).observe(other);
+  window.addEventListener('resize', place);
   place();
 
   root.innerHTML = `

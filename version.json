@@ -1,10 +1,11 @@
 {
-  "version": "2026.11.01-1817",
+  "version": "2026.11.01-1829",
   "files": [
     "src/api.js",
     "src/table.js",
     "src/game.js",
     "src/live.js",
+    "src/dock.js",
     "src/rotation.js",
     "src/ui.js",
     "src/build.js",
@@ -20,6 +21,7 @@
     "src/table.js",
     "src/game.js",
     "src/live.js",
+    "src/dock.js",
     "src/update.js"
   ],
   "modules": [

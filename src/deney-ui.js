@@ -14,8 +14,10 @@
   const below = ['ikabot-research-host', 'ikabot-build-host', 'ikabot-host'].map((id) => document.getElementById(id)).filter(Boolean);
   function place() {
     requestAnimationFrame(() => {
-      const top = Math.min(...below.map((el) => el.getBoundingClientRect().top), window.innerHeight - 4);
-      host.style.bottom = (below.length ? window.innerHeight - top + 8 : 12) + 'px';
+      // Gizli paneller (bot menüsü kapalıyken) sayılmaz.
+      const shown = below.filter((el) => el.getBoundingClientRect().height > 0);
+      const top = Math.min(...shown.map((el) => el.getBoundingClientRect().top), window.innerHeight - 4);
+      host.style.bottom = (shown.length ? window.innerHeight - top + 8 : IB.dock ? IB.dock.base() : 12) + 'px';
     });
   }
   if (window.ResizeObserver) below.forEach((el) => new ResizeObserver(place).observe(el));

@@ -7,6 +7,10 @@
   const host = document.createElement('div');
   host.id = 'ikabot-host';
   host.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:2147483000;';
+  // Bot menüsünün (src/dock.js) hemen üstüne otur.
+  const base = () => (IB.dock ? IB.dock.base() : 12);
+  host.style.bottom = base() + 'px';
+  window.addEventListener('resize', () => (host.style.bottom = base() + 'px'));
   document.body.appendChild(host);
   const root = host.attachShadow({ mode: 'open' });
 

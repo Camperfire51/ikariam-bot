@@ -17,6 +17,9 @@ Chrome'un sağ üstündeki eklenti simgesine (yapboz → Ikariam Bot; sabitlemek
 
 Modüllerin dosyaları `modules.json`'da tanımlıdır; her dosya ya çekirdekte (`core`) ya da tek bir modülde olmalı (`release.js` kontrol eder).
 
+## Bot menüsü
+Sol altta **Ikariam Bot** çubuğu durur; bütün bot panelleri onun üstüne dizilir. Çubuğa tıklayınca bütün paneller birlikte gizlenir (ekranda sadece çubuk kalır), tekrar tıklayınca geri gelir. Botlar gizliyken de çalışır. Çubukta her botun durum noktası (kırmızı/yeşil/gri) görünür; üzerine gelince o botun canlı durum yazısı çıkar. Seçim sayfa yenilense de korunur (`src/dock.js`).
+
 ## Canlı durum
 Her panelin başlığının hemen altında, panel kapalıyken de görünen bir satır var: botun o an ne yaptığı ("Şu an: Nokron kontrol ediliyor…") ya da bir sonraki işleme kalan süre (saniye saniye geri sayım, saatiyle). Şehir/rotasyon satırlarında da aynı geri sayım durur. Renkler: **kırmızı** olumsuz (durdu, hata, kaynak/asker eksik, bulunamadı…), **yeşil** olumlu (çalışıyor, iş yapılıyor, gönderildi), **gri** nötr (durdu, duraklatıldı, bekliyor). Renk durum yazısından seçilir (`src/live.js`).
 

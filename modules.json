@@ -1,5 +1,5 @@
 {
-  "core": ["src/api.js", "src/table.js", "src/game.js", "src/live.js", "src/update.js"],
+  "core": ["src/api.js", "src/table.js", "src/game.js", "src/live.js", "src/dock.js", "src/update.js"],
   "modules": [
     { "id": "barbar", "name": "Barbar Rotasyonu", "files": ["src/rotation.js", "src/ui.js"] },
     { "id": "insaat", "name": "İnşaat Sırası", "files": ["src/build.js", "src/build-ui.js"] },

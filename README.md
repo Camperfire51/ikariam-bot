@@ -1,22 +1,32 @@
 # Ikariam Barbar Rotasyonu (Chrome eklentisi)
 
-## Kurulum (otomatik güncellenen)
+## Kurulum (herkes için aynı, geliştiricinin bilgisayarı dahil)
 Bot kodu GitHub Pages'te durur (https://camperfire51.github.io/ikariam-bot/). Chrome'a sadece küçük bir yükleyici kurulur; her sayfa açılışında güncel sürüm oradan gelir.
 
-1. Bu depodaki `loader` klasörünü bilgisayara kopyala (sadece `manifest.json` ve `loader.js` var).
+1. Bu depodaki `loader` klasörünü (ya da `ikariam-bot-yukleyici.zip`'i açıp) bilgisayarda kalıcı bir yere koy. Klasörü silme/taşıma.
 2. Chrome'da `chrome://extensions` adresini aç, sağ üstten **Geliştirici modu**nu aç.
-3. Eski bot eklentisi yüklüyse **kaldır** (ayarlar ve kayıtlar silinmez, oyunun sayfasında durur).
-4. **Paketlenmemiş öğe yükle** → `loader` klasörünü seç.
-5. Oyun sekmesini yenile. Sol altta **Barbar Rotasyonu** paneli çıkar.
+3. Eski bot eklentisi ya da eski yükleyici yüklüyse **kaldır** (ayarlar ve kayıtlar silinmez, oyunun sayfasında durur).
+4. **Paketlenmemiş öğe yükle** → `loader` klasörünü seç (içinde `manifest.json` ve `loader.js` olmalı).
+5. Oyun sekmesini yenile. Sol altta bot panelleri çıkar.
 6. Ayarlar → Performans → Bellek Tasarrufu'nda `ikariam.gameforge.com` adresini "her zaman etkin tut" listesine ekle (sekme uyutulursa bot durur).
 
-Güncelleme: yeni sürüm yayınlanınca açık oyun sekmesinin üstünde **"Bot güncellemesi var"** uyarısı çıkar (10 dakikada bir bakılır). **Yenile**'ye basmak ya da sayfayı yenilemek yeterli; çalışan botlar kaldığı yerden devam eder. Yükleyici bir daha değiştirilmez.
+Güncelleme: yeni sürüm yayınlanınca açık oyun sekmesinin üstünde **"Bot güncellemesi var"** uyarısı çıkar (10 dakikada bir bakılır). **Yenile**'ye basmak ya da sayfayı yenilemek yeterli; çalışan botlar kaldığı yerden devam eder.
 
-## Geliştirme ve yeni sürüm yayınlama
-- Kendi bilgisayarında denemek için yükleyici yerine bu klasörün kendisini (`ikariam-bot`) paketlenmemiş öğe olarak yükle; kod yerel dosyalardan çalışır. İkisini aynı anda yükleme (yükleyici yerel bot zaten yüklüyse kendini devre dışı bırakır ama sıralama garanti değil).
-- Değişiklik bitince klasörde şunu çalıştır: `node release.js "ne değişti"`. `version.json` yeni sürüm numarası ve `manifest.json`'daki dosya listesiyle yazılır, commit'lenip GitHub'a gönderilir. GitHub Pages birkaç dakika içinde yayına alır.
+## Geliştirme → test → yayınlama
+İki ortam var: **ürün** (GitHub Pages, herkes) ve **test** (geliştiricinin bilgisayarındaki yerel sunucu, sadece test modu açılan tarayıcı).
+
+1. **Geliştir:** `C:\ikariam-bot\src` altındaki kod değiştirilir. Bu hiçbir oyuncuyu etkilemez.
+2. **Test et:**
+   - `TEST-BASLAT.cmd`'ye çift tıkla (test sunucusu penceresi açılır, açık kalsın).
+   - Oyunda adres çubuğunda adresin sonuna `#ikabot-test` yazıp Enter'a bas. Sayfa yenilenir, bot yerel koddan gelir ve ekranın üstünde kırmızı **TEST SÜRÜMÜ** etiketi durur. (Chrome ilk seferde "yerel ağa erişim" izni sorabilir: izin ver.)
+   - Kod değişince 15 sn içinde "Test kodu değişti → Yenile" uyarısı çıkar.
+   - Bitince etiketteki **Ürüne dön**'e bas. Test sunucusu penceresini kapatabilirsin; test modu açık unutulsa bile sunucu kapalıyken ürün sürümü yüklenir.
+3. **Yayınla:** `YAYINLA.cmd`'ye çift tıkla, ne değiştiğini kısaca yaz. (Aynısı: `node release.js "ne değişti"`.) `version.json` yenilenir, GitHub'a gönderilir; birkaç dakika içinde herkeste "güncelleme var" uyarısı çıkar.
+
+Notlar:
 - Yeni bir `src/*.js` dosyası eklenirse `manifest.json`'daki listeye eklemek yeterli; yükleyici listeyi `version.json`'dan okur.
-- Depo herkese açıktır; içine şifre, oturum bilgisi ya da kişisel veri koyma. GitHub hesabında iki adımlı doğrulama açık olsun: buraya konan kod arkadaşlarının oyununda çalışır.
+- `manifest.json` (kök klasör) eski yöntemle yerel eklenti olarak da yüklenebilir, ama yükleyiciyle aynı tarayıcıda kullanma.
+- Depo herkese açıktır; içine şifre, oturum bilgisi ya da kişisel veri koyma. GitHub hesabında iki adımlı doğrulama açık olsun: buraya konan kod herkesin oyununda çalışır.
 
 ## Kullanım
 Panelde her barbar rotasyonu için ayrı bir kart var. **+ Rotasyon ekle** ile istediğin kadar rotasyon açabilir, her birini ayrı başlatıp durdurabilirsin. Rotasyonlar aynı anda çalışır.

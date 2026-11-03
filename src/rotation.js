@@ -11,7 +11,6 @@
   const OLD_KEY = 'ikabot.barbar.v1';
   const LOG_KEY = 'ikabot.barbar.log';
   const LOCK_KEY = 'ikabot.barbar.lock';
-  const TAB_ID = Math.random().toString(36).slice(2);
   const STOCK_CHECK_MS = [900000, 1500000]; // asker havuzunun düzenli kontrol aralığı: rastgele 15-25 dk
   const SPEAR_CHECK_MS = [1800000, 3000000]; // sömürgedeki mızrakçılara bakma aralığı: rastgele 30-50 dk
   // Bir rotasyonun iki kontrolü arasındaki en uzun bekleme. Zamanı bilinen işler (gönderim anı, dönen gemiler)
@@ -85,21 +84,7 @@
 
   // ---------- Tek sekme kilidi (iki sekme aynı anda saldırı göndermesin) ----------
 
-  function acquireLock() {
-    let l = null;
-    try {
-      l = JSON.parse(localStorage.getItem(LOCK_KEY));
-    } catch (e) {}
-    if (l && l.owner !== TAB_ID && Date.now() - l.ts < 90000) return false;
-    localStorage.setItem(LOCK_KEY, JSON.stringify({ owner: TAB_ID, ts: Date.now() }));
-    return true;
-  }
-  function releaseLock() {
-    try {
-      const l = JSON.parse(localStorage.getItem(LOCK_KEY));
-      if (l && l.owner === TAB_ID) localStorage.removeItem(LOCK_KEY);
-    } catch (e) {}
-  }
+  const lock = IB.tabLock(LOCK_KEY);
 
   // ---------- Köydeki yağma miktarı ----------
   // Saldırı köy toparlanmadan önce gönderildiği için o an köyde sıradaki seviyenin kaynağı görünmez.
@@ -790,7 +775,7 @@
         r.st.status = reason ? 'DURDU: ' + reason : 'Durdu';
       }
       this.save();
-      releaseLock();
+      lock.release();
       if (reason) {
         IB.log('Tüm rotasyonlar durduruldu: ' + reason, level);
         IB.notify('Ikariam barbar botu durdu', reason);
@@ -802,7 +787,7 @@
 
     // Bir rotasyon başlatıldı/durduruldu: zamanlayıcıyı uyandır ya da başlat.
     kick() {
-      if (!this.running) releaseLock();
+      if (!this.running) lock.release();
       if (this._wake) this._wake();
       if (this.running) this.loop();
     },
@@ -1053,11 +1038,11 @@
       this._looping = true;
       let httpFailures = 0;
       const heartbeat = setInterval(() => {
-        if (this.running) acquireLock();
+        if (this.running) lock.refresh();
       }, 30000);
       try {
         while (this.running) {
-          if (!acquireLock()) {
+          if (!(await lock.acquire())) {
             // Başka sekme çalışıyor: kayda yazma (onun güncel verisini ezer), sadece izle.
             if (!this.passive) {
               this.passive = true;
@@ -1142,7 +1127,7 @@
         clearInterval(heartbeat);
         this._looping = false;
         this.current = null;
-        if (!this.running) releaseLock();
+        if (!this.running) lock.release();
       }
     },
   });
@@ -1152,7 +1137,7 @@
   IB.onPauseChange((bot) => {
     if (bot === 'barbar' && Manager._wake) Manager._wake();
   });
-  window.addEventListener('beforeunload', releaseLock);
+  window.addEventListener('beforeunload', () => lock.release());
   // Başka sekme kayda yazdıysa ve bu sekme çalışan sekme değilse, güncel durumu göster.
   window.addEventListener('storage', (e) => {
     if (e.key === KEY && (Manager.passive || !Manager._looping)) Manager.reload();

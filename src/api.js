@@ -8,6 +8,74 @@
   // [min, max] aralığında rastgele tam sayı.
   IB.rand = (min, max) => Math.floor(min + Math.random() * (max - min + 1));
 
+  // Tek sekme kilidi: aynı botu iki sekme aynı anda çalıştırmasın. Kilit localStorage'da sahibin kimliği ve
+  // son yenileme zamanıyla durur. Sahip kilidi bırakamadan kapanırsa (çökme, Chrome'un sekmeyi uyutması,
+  // önden yüklenip atılan sayfa) kayıt bir süre taze görünür; bu yüzden kilit doluysa sahibine
+  // BroadcastChannel ile "orada mısın" diye sorulur, cevap gelmezse kilit hemen devralınır.
+  IB.tabLock = (key) => {
+    const id = Math.random().toString(36).slice(2);
+    const ch = window.BroadcastChannel ? new BroadcastChannel(key) : null;
+    const read = () => {
+      try {
+        return JSON.parse(localStorage.getItem(key));
+      } catch (e) {
+        return null;
+      }
+    };
+    const write = () => {
+      try {
+        localStorage.setItem(key, JSON.stringify({ owner: id, ts: Date.now() }));
+      } catch (e) {}
+    };
+    if (ch) {
+      ch.onmessage = (e) => {
+        const m = e.data || {};
+        const l = read();
+        if (m.type === 'ping' && m.owner === id && l && l.owner === id) ch.postMessage({ type: 'pong', to: m.from });
+      };
+    }
+    function ownerAlive(owner) {
+      if (!ch) return Promise.resolve(true);
+      return new Promise((resolve) => {
+        const from = Math.random().toString(36).slice(2);
+        const done = (alive) => {
+          clearTimeout(timer);
+          ch.removeEventListener('message', onMsg);
+          resolve(alive);
+        };
+        const onMsg = (e) => {
+          if (e.data && e.data.type === 'pong' && e.data.to === from) done(true);
+        };
+        const timer = setTimeout(() => done(false), 3000);
+        ch.addEventListener('message', onMsg);
+        ch.postMessage({ type: 'ping', owner, from });
+      });
+    }
+    return {
+      // Kilidi alır; başka bir sekme gerçekten çalışıyorsa false.
+      async acquire() {
+        const l = read();
+        if (l && l.owner !== id && Date.now() - l.ts < 90000 && (await ownerAlive(l.owner))) {
+          console.log(`[IkaBot] ${key}: başka bir sekme/pencere çalışıyor, bu sekme izliyor.`);
+          return false;
+        }
+        write();
+        return true;
+      },
+      // Çalışırken düzenli çağrılır: kilit hâlâ bizdeyse (ya da boşsa) zamanını tazeler.
+      refresh() {
+        const l = read();
+        if (!l || l.owner === id) write();
+      },
+      release() {
+        const l = read();
+        try {
+          if (l && l.owner === id) localStorage.removeItem(key);
+        } catch (e) {}
+      },
+    };
+  };
+
   class GameError extends Error {
     constructor(message, kind = 'game') {
       super(message);

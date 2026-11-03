@@ -11,7 +11,6 @@
   const KEY = 'ikabot.arastirma.v1';
   const LOG_KEY = 'ikabot.arastirma.log';
   const LOCK_KEY = 'ikabot.arastirma.lock';
-  const TAB_ID = Math.random().toString(36).slice(2);
 
   const listeners = new Set();
   const emit = () => listeners.forEach((fn) => { try { fn(); } catch (e) {} });
@@ -35,23 +34,7 @@
   };
 
   // Tek sekme kilidi: iki sekme aynı anda araştırma emri vermesin.
-  function acquireLock() {
-    let l = null;
-    try {
-      l = JSON.parse(localStorage.getItem(LOCK_KEY));
-    } catch (e) {}
-    if (l && l.owner !== TAB_ID && Date.now() - l.ts < 90000) return false;
-    try {
-      localStorage.setItem(LOCK_KEY, JSON.stringify({ owner: TAB_ID, ts: Date.now() }));
-    } catch (e) {}
-    return true;
-  }
-  function releaseLock() {
-    try {
-      const l = JSON.parse(localStorage.getItem(LOCK_KEY));
-      if (l && l.owner === TAB_ID) localStorage.removeItem(LOCK_KEY);
-    } catch (e) {}
-  }
+  const lock = IB.tabLock(LOCK_KEY);
 
   const fmtClock = (ms) => new Date(ms).toLocaleTimeString('tr-TR');
   const fmtNum = (n) => Number(n).toLocaleString('tr-TR');
@@ -143,7 +126,7 @@
       this.running = false;
       this.status = reason ? 'Durdu: ' + reason : 'Durdu';
       this.save();
-      releaseLock();
+      lock.release();
       log(reason ? 'Araştırma sırası durdu: ' + reason : 'Araştırma sırası durduruldu.', level);
       if (reason && level === 'error' && IB.notify) IB.notify('Araştırma sırası durdu', reason);
       this.wake();
@@ -258,11 +241,11 @@
       this._looping = true;
       let httpFailures = 0;
       const heartbeat = setInterval(() => {
-        if (this.running && !this.passive) acquireLock();
+        if (this.running && !this.passive) lock.refresh();
       }, 30000);
       try {
         while (this.running) {
-          if (!acquireLock()) {
+          if (!(await lock.acquire())) {
             // Başka sekme çalışıyor: bu sekme sadece izler.
             if (!this.passive) {
               this.passive = true;
@@ -334,7 +317,7 @@
         this._looping = false;
         this.current = null;
         this.passive = false;
-        if (!this.running) releaseLock();
+        if (!this.running) lock.release();
         emit();
       }
     },
@@ -342,7 +325,7 @@
 
   R.load();
   IB.onPauseChange((bot) => { if (bot === 'arastirma') R.wake(); });
-  window.addEventListener('beforeunload', releaseLock);
+  window.addEventListener('beforeunload', () => lock.release());
   window.addEventListener('storage', (e) => {
     if (e.key === KEY && (R.passive || !R._looping)) R.load();
   });

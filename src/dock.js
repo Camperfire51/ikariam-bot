@@ -32,11 +32,11 @@
       * { box-sizing: border-box; }
       .bar { font: 12px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color:#1d1d1d; background:#ffffff;
         border:1px solid #a58552; border-radius:8px; box-shadow:0 4px 18px rgba(0,0,0,.35); padding:5px 10px;
-        display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none; width:370px; }
+        display:flex; flex-wrap:wrap; align-items:center; column-gap:10px; row-gap:3px; cursor:pointer; user-select:none; width:370px; }
       .all { display:flex; align-items:center; gap:3px; font-size:11px; cursor:pointer; white-space:nowrap; }
       .all.off { color:#b3392f; font-weight:600; }
-      b { color:#1d1d1d; }
-      .bots { flex:1; display:flex; gap:9px; flex-wrap:wrap; }
+      b { color:#1d1d1d; flex:1; white-space:nowrap; }
+      .bots { order:9; flex:1 1 100%; display:flex; gap:12px; flex-wrap:wrap; } .bots:empty { display:none; }
       .bot { display:flex; align-items:center; gap:4px; font-size:11px; color:#444444; }
       .d { width:8px; height:8px; border-radius:50%; background:#9a9a9a; }
       .d.good { background:#2e9e44; } .d.bad { background:#d93a2f; }
@@ -213,6 +213,74 @@
     }, 4000);
   });
 
-  // En alttaki panelin oturacağı yükseklik (px): çubuğun hemen üstü.
-  IB.dock = { base: () => 12 + (host.getBoundingClientRect().height || 30) + GAP };
+  // ---------- Panel yerleşimi ----------
+  // Bütün bot panelleri burada, tek yerden, BOTS sırasıyla alttan üste dizilir: her panel bir alttakinin hemen
+  // üstüne oturur (gizli / yüklü olmayan panel yer kaplamaz). Açık panellerin toplamı ekrana sığmazsa açık
+  // panellerin gövdeleri (kaydırılabilir kısım) kısaltılır; böylece paneller hiçbir zaman üst üste binmez ve
+  // ekranın üstünden taşmaz. Çubuk, paneller ya da pencere boyut değiştirince yeniden hesaplanır.
+  const TOP = 8; // ekranın üstünde bırakılan boşluk
+  const MIN_BODY = 80; // sıkışınca bile bir gövdenin alabileceği en az yükseklik
+  const base = () => 12 + (host.offsetHeight || 30) + GAP;
+  const observed = new WeakSet();
+  const ro = window.ResizeObserver ? new ResizeObserver(() => schedule()) : null;
+  if (ro) ro.observe(host);
+  let pending = false;
+  function schedule() {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => {
+      pending = false;
+      layout();
+    });
+  }
+  function hosts() {
+    const out = [];
+    for (const [id] of BOTS) {
+      const h = document.getElementById(id);
+      if (!h) continue;
+      if (ro && !observed.has(h)) {
+        observed.add(h);
+        ro.observe(h);
+      }
+      out.push(h);
+    }
+    return out;
+  }
+  function layout() {
+    const list = hosts();
+    // 1) Gövde sınırı: açık gövdelerin doğal yükseklikleri sığmıyorsa boş yer aralarında paylaştırılır
+    //    (kısa gövde tam alır, kalanı uzunlara kalır).
+    const shown = list.filter((h) => h.offsetHeight > 0);
+    const bodies = [];
+    let fixed = 0;
+    for (const h of shown) {
+      const body = h.shadowRoot && h.shadowRoot.querySelector('.body');
+      const bh = body ? body.offsetHeight : 0;
+      fixed += h.offsetHeight - bh + GAP;
+      if (body && bh > 0) bodies.push({ h, need: body.scrollHeight });
+      else if (h.style.getPropertyValue('--ikabot-body-max')) h.style.removeProperty('--ikabot-body-max');
+    }
+    let room = window.innerHeight - base() - TOP - fixed;
+    bodies.sort((a, b) => a.need - b.need);
+    bodies.forEach((b, i) => {
+      const share = Math.max(MIN_BODY, Math.floor(room / (bodies.length - i)));
+      const give = Math.min(b.need, share);
+      room -= give;
+      const v = give + 'px';
+      if (b.h.style.getPropertyValue('--ikabot-body-max') !== v) b.h.style.setProperty('--ikabot-body-max', v);
+    });
+    // 2) Dizilim: her panel bir öncekinin hemen üstüne.
+    let bottom = base();
+    for (const h of list) {
+      const v = bottom + 'px';
+      if (h.style.bottom !== v) h.style.bottom = v;
+      const ht = h.offsetHeight;
+      if (ht > 0) bottom += ht + GAP;
+    }
+  }
+  window.addEventListener('resize', schedule);
+  setInterval(layout, 1000); // gövde içeriği büyüyüp küçülünce de (panel boyu değişmese bile) güncel kalsın
+
+  // Paneller oluşturulunca kendilerini buraya bildirir.
+  IB.dock = { base, add: schedule, layout: schedule };
 })();

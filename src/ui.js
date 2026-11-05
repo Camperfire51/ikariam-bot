@@ -7,11 +7,8 @@
   const host = document.createElement('div');
   host.id = 'ikabot-host';
   host.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:2147483000;';
-  // Bot menüsünün (src/dock.js) hemen üstüne otur.
-  const base = () => (IB.dock ? IB.dock.base() : 12);
-  host.style.bottom = base() + 'px';
-  window.addEventListener('resize', () => (host.style.bottom = base() + 'px'));
   document.body.appendChild(host);
+  if (IB.dock) IB.dock.add(host); // yerini bot menüsü (src/dock.js) belirler
   const root = host.attachShadow({ mode: 'open' });
 
   root.innerHTML = `
@@ -28,7 +25,7 @@
     .dot { width:9px; height:9px; border-radius:50%; background:#999; flex:none; }
     .dot.run { background:#5bd16b; } .dot.err { background:#ff5a4f; } .dot.pause { background:#f0b429; }
     .onoff { display:flex; align-items:center; gap:3px; font-size:11px; cursor:pointer; }
-    .body { padding:8px 10px; display:grid; gap:8px; max-height:75vh; overflow:auto; }
+    .body { padding:8px 10px; display:grid; gap:8px; max-height:min(75vh, var(--ikabot-body-max, 75vh)); overflow:auto; }
     .collapsed .body { display:none; }
     .card { border:1px solid #d9c49a; border-radius:6px; padding:6px 8px; display:grid; gap:5px; }
     .card.running { border-color:#5bd16b; }

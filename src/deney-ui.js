@@ -10,19 +10,7 @@
   document.body.appendChild(host);
   const root = host.attachShadow({ mode: 'open' });
 
-  // Alttaki panellerin (araştırma, inşaat, barbar) üstüne otur; onlar büyüyüp küçüldükçe yer değiştir.
-  const below = ['ikabot-research-host', 'ikabot-build-host', 'ikabot-host'].map((id) => document.getElementById(id)).filter(Boolean);
-  function place() {
-    requestAnimationFrame(() => {
-      // Gizli paneller (bot menüsü kapalıyken) sayılmaz.
-      const shown = below.filter((el) => el.getBoundingClientRect().height > 0);
-      const top = Math.min(...shown.map((el) => el.getBoundingClientRect().top), window.innerHeight - 4);
-      host.style.bottom = (shown.length ? window.innerHeight - top + 8 : IB.dock ? IB.dock.base() : 12) + 'px';
-    });
-  }
-  if (window.ResizeObserver) below.forEach((el) => new ResizeObserver(place).observe(el));
-  window.addEventListener('resize', place);
-  place();
+  if (IB.dock) IB.dock.add(host); // yerini bot menüsü (src/dock.js) belirler
 
   root.innerHTML = `
   <style>
@@ -38,7 +26,7 @@
     .dot { width:9px; height:9px; border-radius:50%; background:#999; flex:none; }
     .dot.run { background:#5bd16b; } .dot.err { background:#ff5a4f; } .dot.pause { background:#f0b429; }
     .onoff { display:flex; align-items:center; gap:3px; font-size:11px; cursor:pointer; }
-    .body { padding:8px 10px; display:grid; gap:8px; max-height:50vh; overflow:auto; }
+    .body { padding:8px 10px; display:grid; gap:8px; max-height:min(50vh, var(--ikabot-body-max, 50vh)); overflow:auto; }
     .collapsed .body { display:none; }
     .row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
     button { font:inherit; padding:3px 9px; border-radius:4px; border:1px solid #6b4c22; background:#ffffff; color:#1d1d1d; cursor:pointer; }

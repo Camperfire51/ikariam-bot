@@ -1,4 +1,4 @@
-// İnşaat sırası paneli: barbar panelinin hemen üstünde durur, ondan bağımsızdır.
+// İnşaat sırası paneli: barbar panelinin hemen üstünde durur (yerleşim: src/dock.js), ondan bağımsızdır.
 (() => {
   const IB = window.IkaBot;
   if (!window.ikariam || !ikariam.model || window.top !== window) return;
@@ -11,17 +11,7 @@
   document.body.appendChild(host);
   const root = host.attachShadow({ mode: 'open' });
 
-  // Barbar paneli varsa onun üstüne otur; o büyüyüp küçüldükçe yer değiştir.
-  function place() {
-    const other = document.getElementById('ikabot-host');
-    const h = other ? other.getBoundingClientRect().height : 0;
-    const base = IB.dock ? IB.dock.base() : 12; // bot menüsünün üstü
-    host.style.bottom = (h ? base + h + 8 : base) + 'px';
-  }
-  const other = document.getElementById('ikabot-host');
-  if (other && window.ResizeObserver) new ResizeObserver(place).observe(other);
-  window.addEventListener('resize', place);
-  place();
+  if (IB.dock) IB.dock.add(host); // yerini bot menüsü (src/dock.js) belirler
 
   root.innerHTML = `
   <style>
@@ -37,7 +27,7 @@
     .dot { width:9px; height:9px; border-radius:50%; background:#999; flex:none; }
     .dot.run { background:#5bd16b; } .dot.err { background:#ff5a4f; } .dot.pause { background:#f0b429; }
     .onoff { display:flex; align-items:center; gap:3px; font-size:11px; cursor:pointer; }
-    .body { padding:8px 10px; display:grid; gap:8px; max-height:60vh; overflow:auto; }
+    .body { padding:8px 10px; display:grid; gap:8px; max-height:min(60vh, var(--ikabot-body-max, 60vh)); overflow:auto; }
     .collapsed .body { display:none; }
     .add { border:1px solid #d9c49a; border-radius:6px; padding:6px 8px; display:grid; gap:5px; }
     label { display:grid; grid-template-columns: 90px 1fr; align-items:center; gap:6px; }

@@ -1,5 +1,5 @@
 {
-  "version": "2026.11.03-2114",
+  "version": "2026.11.05-2113",
   "files": [
     "src/api.js",
     "src/table.js",

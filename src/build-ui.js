@@ -38,14 +38,15 @@
     button.danger { color:#b3392f; border-color:#b3392f; }
     button.mini { padding:0 6px; }
     button:disabled { opacity:.45; cursor:default; }
-    .status { padding:5px; border:1px solid #e6d6b3; border-radius:4px; white-space:pre-wrap; font-size:11px; }
+    .status { padding:5px; border:1px solid #e6d6b3; border-radius:4px; white-space:pre-wrap; font-size:11px;
+      max-height:6.6em; overflow:auto; overflow-wrap:anywhere; }
     .status.err { color:#b3392f; }
     .city { border:1px solid #d9c49a; border-radius:6px; padding:5px 8px; display:grid; gap:3px; }
     .city h4 { margin:0; font-size:12px; }
     .item { display:flex; align-items:center; gap:4px; }
     .item .t { flex:1; }
     .item.first .t { font-weight:600; }
-    .cs { font-size:11px; color:#555555; white-space:pre-wrap; }
+    .cs { font-size:11px; color:#555555; white-space:pre-wrap; max-height:4.4em; overflow:auto; overflow-wrap:anywhere; }
     .log { height:110px; overflow:auto; border:1px solid #d9c49a; border-radius:4px; padding:4px; font-size:11px; }
     .log div { border-bottom:1px dotted #e6d6b3; padding:1px 0; }
     .log div.warn { color:#9a5b00; } .log div.error { color:#b3392f; font-weight:600; }

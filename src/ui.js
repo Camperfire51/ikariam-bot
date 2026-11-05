@@ -39,7 +39,8 @@
     button.primary { font-weight:600; border-width:2px; }
     button.danger { color:#b3392f; border-color:#b3392f; }
     button:disabled { opacity:.45; cursor:default; }
-    .status { padding:5px; background:#ffffff; border:1px solid #e6d6b3; border-radius:4px; white-space:pre-wrap; font-size:11px; }
+    .status { padding:5px; background:#ffffff; border:1px solid #e6d6b3; border-radius:4px; white-space:pre-wrap; font-size:11px;
+      max-height:6.6em; overflow:auto; overflow-wrap:anywhere; }
     .status.err { color:#b3392f; }
     .summary { font-size:11px; color:#555555; }
     .log { height:150px; overflow:auto; background:#ffffff; border:1px solid #d9c49a; border-radius:4px; padding:4px; font-size:11px; }

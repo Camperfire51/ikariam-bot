@@ -32,12 +32,13 @@
     button { font:inherit; padding:3px 9px; border-radius:4px; border:1px solid #6b4c22; background:#ffffff; color:#1d1d1d; cursor:pointer; }
     button.primary { font-weight:600; border-width:2px; }
     button:disabled { opacity:.45; cursor:default; }
-    .status { padding:5px; border:1px solid #e6d6b3; border-radius:4px; white-space:pre-wrap; font-size:11px; }
+    .status { padding:5px; border:1px solid #e6d6b3; border-radius:4px; white-space:pre-wrap; font-size:11px;
+      max-height:6.6em; overflow:auto; overflow-wrap:anywhere; }
     .status.err { color:#b3392f; }
     .note { font-size:11px; color:#555555; }
     .cities { border:1px solid #d9c49a; border-radius:6px; padding:5px 8px; display:grid; gap:4px; }
     .city label { display:flex; align-items:center; gap:6px; cursor:pointer; }
-    .cs { font-size:11px; color:#555555; white-space:pre-wrap; margin-left:22px; }
+    .cs { font-size:11px; color:#555555; white-space:pre-wrap; margin-left:22px; max-height:4.4em; overflow:auto; overflow-wrap:anywhere; }
     .log { height:110px; overflow:auto; border:1px solid #d9c49a; border-radius:4px; padding:4px; font-size:11px; }
     .log div { border-bottom:1px dotted #e6d6b3; padding:1px 0; white-space:pre-wrap; user-select:text; }
     .log div.warn { color:#9a5b00; } .log div.error { color:#b3392f; font-weight:600; }

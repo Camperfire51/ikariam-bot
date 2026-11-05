@@ -42,7 +42,9 @@
   const CSS = `
     .live { display:flex; align-items:flex-start; gap:6px; padding:4px 10px; font-size:11px; border-bottom:1px solid #d9c49a; background:#fafafa; }
     .live .ld { width:8px; height:8px; border-radius:50%; margin-top:3px; flex:none; background:#9a9a9a; }
-    .live .lt { flex:1; white-space:pre-wrap; }
+    .live { cursor:pointer; }
+    .live .lt { flex:1; white-space:pre-wrap; min-width:0; overflow:hidden; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
+    .live.full .lt { display:block; -webkit-line-clamp:unset; max-height:140px; overflow:auto; }
     .t-good { color:#1e7d32 !important; } .t-bad { color:#b3392f !important; } .t-idle { color:#666666 !important; }
     .live.t-good .ld { background:#2e9e44; } .live.t-bad .ld { background:#d93a2f; } .live.t-idle .ld { background:#9a9a9a; }
     .cd { color:#666666 !important; font-weight:400; }
@@ -51,7 +53,14 @@
 
   // Panel kökünde (shadow root) canlı satırı ve her öğenin geri sayımını saniyede bir günceller.
   // get(): summary()'nin aldığı nesne. Öğe satırlarındaki geri sayım: data-next="ms" taşıyan elemanın .cd alt elemanı.
+  // Uzun yazı 2 satırda kesilir (tamamı fareyle üstüne gelince görünür); satıra tıklayınca tamamı açılır / kapanır.
   function attach(root, get) {
+    let full = false;
+    const liveEl = root.getElementById('live');
+    if (liveEl) liveEl.addEventListener('click', () => {
+      full = !full;
+      tick();
+    });
     const tick = () => {
       let r;
       try {
@@ -61,9 +70,12 @@
       }
       const el = root.getElementById('live');
       if (!el) return;
-      el.className = 'live t-' + r.tone;
+      el.className = 'live t-' + r.tone + (full ? ' full' : '');
       const t = root.getElementById('liveText');
-      if (t.textContent !== r.text) t.textContent = r.text;
+      if (t.textContent !== r.text) {
+        t.textContent = r.text;
+        el.title = r.text + '\n\n(Tıkla: tamamını göster / kısalt)';
+      }
       for (const n of root.querySelectorAll('[data-next]')) {
         const cd = n.querySelector('.cd');
         if (cd) cd.textContent = Number(n.dataset.next) ? ' · ' + until(Number(n.dataset.next)) : '';

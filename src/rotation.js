@@ -167,15 +167,18 @@
       if (mineOnIsland.length !== 1 || mineOnIsland[0].id !== colonyId)
         throw new GameError('Barbar adasında yalnızca seçilen sömürge bulunmalı.', 'config');
 
-      // Seçilen seviyeye kadar tabloda istenen tüm birimler araştırılmış mı?
+      // Araştırılmamış birim engel değil (oyunda satın alınabiliyor): sadece bilgi verilir. Kışla basamazsa
+      // asker havuzu bunu bir kez yazar; birimler elle alınınca rotasyon devam eder.
       const units = await G.units(originId);
+      const unresearched = new Set();
       for (let lv = 1; lv <= maxLevel; lv++) {
-        const plan = IB.planForLevel(lv);
-        for (const id of Object.keys(plan.units)) {
-          if (!units[id] || units[id].amount === null)
-            throw new GameError(`Seviye ${lv} için ${IB.UNIT_NAMES[id] || id} gerekiyor ama araştırılmamış. En fazla seviye ${lv - 1} seçilebilir.`, 'config');
-        }
+        for (const id of Object.keys(IB.planForLevel(lv).units)) if (!units[id] || units[id].amount === null) unresearched.add(id);
       }
+      for (const id of Object.keys(IB.getFollowUnits())) if (!units[id] || units[id].amount === null) unresearched.add(id);
+      if (unresearched.size)
+        this.log(
+          `Bilgi: ${[...unresearched].map((id) => IB.UNIT_NAMES[id] || id).join(', ')} araştırılmamış görünüyor; kışla basamayabilir, gerekirse elle satın al. Şehirde yeterince olunca saldırı gider.`
+        );
 
       return {
         ...this.cfg,
@@ -411,8 +414,9 @@
       const missing = {};
       for (const [id, n] of Object.entries(plan.units)) {
         const u = units[id];
-        if (!u || u.amount === null) throw new GameError(`${IB.UNIT_NAMES[id] || id} araştırılmamış.`, 'safety');
-        if (u.amount < n) missing[id] = n - u.amount;
+        // Araştırılmamış birim oyunda "-" görünür: şehirde 0 sayılır (satın alınabilir).
+        const have = (u && u.amount) || 0;
+        if (have < n) missing[id] = n - have;
       }
       if (Object.keys(missing).length) return this.handleMissingUnits(missing, level);
       if (st.notified.missingUnits) {
@@ -563,9 +567,8 @@
       const home = await G.units(cfg.originId);
       const missing = {};
       for (const [id, c] of Object.entries(units)) {
-        const u = home[id];
-        if (!u || u.amount === null) return skip(`ek sefer için ${IB.UNIT_NAMES[id] || id} araştırılmamış; alınmayacak.`);
-        if (u.amount < c) missing[id] = c - u.amount;
+        const have = (home[id] && home[id].amount) || 0; // araştırılmamışsa 0 (satın alınabilir)
+        if (have < c) missing[id] = c - have;
       }
       if (Object.keys(missing).length) {
         this.setStatus(`Seviye ${bv.level} köyünde ${left} kaynak kaldı; ${label} için şehirde ${IB.describeUnits(missing)} eksik, bekleniyor.`);

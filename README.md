@@ -43,7 +43,7 @@ Her kartta şu ayarlar var:
 - **Kaynak şehir:** askerlerin çıkacağı ana şehir.
 - **Barbar sömürgesi:** barbar köyü vurulacak adadaki geçici sömürge.
 - **Max barbar seviyesi:** bu seviye dahil vurulur, sonra bot uyarı verip durur.
-- Max seviye başlatırken doğrulanır (tablodaki birimler araştırılmış mı); sonradan yükseltmek için rotasyonu durdurup yeniden başlat.
+- Max seviye başlatırken doğrulanır. Araştırılmamış birim engel değil (oyunda satın alınabiliyor): başlatınca günlüğe bilgi düşer, kışla basamıyorsa elle alırsın; şehirde yeterince olunca saldırı gider. Sonradan yükseltmek için rotasyonu durdurup yeniden başlat.
 
 ## Seviye tablosu
 Paneldeki **Seviye tablosu** düğmesi tabloyu açar. Her seviyede tam olarak tablodaki askerler gider; yükseltme durumu ya da koçbaşı→mancınık gibi otomatik bir hesap yoktur.
@@ -110,4 +110,3 @@ Her panelin başlığında kendi **Açık** tiki var (barbar, inşaat, araştır
 
 Saldırı formu açılmazsa (ör. liman bloklu) bot durmaz; sebebi loga yazar ve birkaç dakika sonra tekrar dener.
 - Saldırı başarısız olursa.
-- Gereken birim araştırılmamışsa.

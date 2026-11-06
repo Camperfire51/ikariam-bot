@@ -218,8 +218,8 @@
     }
 
     // Gönderilecek gemiler: askerler + köydeki yağmanın tamamı. Askerlerin son gemisindeki boş yere de yağma
-    // yüklenir; toplamın tam bir gemiyi doldurmayan küsuratı (bir gemiden az kaynak) bilerek bırakılır.
-    // Örn. 500'lük gemide 200 asker yükü + 5000 kaynak = 5200 → 10 gemi, 200 kaynak köyde kalır.
+    // yüklenir; toplam yukarı yuvarlanır, köyde küsurat kalmaz.
+    // Örn. 500'lük gemide 200 asker yükü + 5000 kaynak = 5200 → 11 gemi, kaynağın tamamı alınır.
     // Köy ayaktaysa kaynak köyden okunur; yıkıksa (erken gönderim) o seviye için kaydedilen değer, o da yoksa tablo kullanılır.
     // troopsOnShips: false ise (aynı ada) askerler gemiye binmez.
     shipPlan(plan, level, destroyed, bv, weight, cap, troopsOnShips) {
@@ -229,14 +229,13 @@
         return { troopShips, lootShips: plan.lootShips, known: false, desc: `${troopShips} taşıma + ${plan.lootShips} ganimet, seviye ${level} kaynağı henüz bilinmiyor: tablodan` };
       }
       const carried = troopsOnShips ? weight : 0;
-      const total = Math.max(troopShips, Math.floor((carried + loot) / cap));
+      const total = Math.max(troopShips, Math.ceil((carried + loot) / cap));
       const lootShips = total - troopShips;
-      const waste = carried + loot - total * cap;
       return {
         troopShips,
         lootShips,
         known: true,
-        desc: `${troopShips} taşıma + ${lootShips} ganimet, köyde ${loot} kaynak${destroyed ? ' (kayıttan)' : ''}${waste > 0 ? `, ${waste} küsurat bırakılır` : ''}`,
+        desc: `${troopShips} taşıma + ${lootShips} ganimet, köyde ${loot} kaynak${destroyed ? ' (kayıttan)' : ''}`,
       };
     }
 
@@ -367,11 +366,11 @@
         if (destroyed || bv.level > la.level) {
           la.evaluated = true;
           st.lastLooted = { level: la.level, at: now };
-          // Bir gemiden az kalan küsurat bilerek bırakılır; ondan fazlası kaldıysa gemi yetmemiştir.
+          // Gemi sayısı yukarı yuvarlandığı için köyde kaynak kalmamalı; bir gemiden fazlası kaldıysa gemi yetmemiştir.
           const leftWarn = bv.resourceTotal > (st.shipCapacity || 500);
           this.log(
             `Seviye ${la.level} yağmalandı.` +
-              (bv.resourceTotal > 0 ? ` Köyde ${bv.resourceTotal} kaynak kaldı${leftWarn ? ' (gemi yetmemiş olabilir)' : ' (bir gemiden az küsurat)'}.` : ''),
+              (bv.resourceTotal > 0 ? ` Köyde ${bv.resourceTotal} kaynak kaldı${leftWarn ? ' (gemi yetmemiş olabilir)' : ''}.` : ''),
             leftWarn ? 'warn' : 'info'
           );
           this.save();

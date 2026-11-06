@@ -70,7 +70,13 @@
       </div>
       <div class="status" id="passiveNote" style="display:none">Bot başka bir sekmede çalışıyor. Bu sekme sadece durumu gösterir; başlatma, durdurma ve ayarları çalışan sekmeden yap.</div>
       <div class="tbl" id="tbl" style="display:none">
-        <div class="tbl-note">Her seviyede tam olarak buradaki askerler gider. Kayıp: o seviyede ölmesi beklenen hoplit (asker havuzu buna göre fazladan basar). Ganimet gemisi: köyün kaynağı henüz bilinmezken kullanılır. Değişiklikler hemen kaydedilir, çalışan rotasyonlar bir sonraki turda yeni değerleri kullanır.</div>
+        <div class="tbl-note">Her seviyede tam olarak buradaki askerler gider. Kayıp: o seviyede ölmesi beklenen hoplit (asker havuzu buna göre fazladan basar). Gemi sayısı köyün kaynağından otomatik hesaplanır; boşta o kadar gemi yoksa boştakilerin hepsiyle gidilir. Değişiklikler hemen kaydedilir, çalışan rotasyonlar bir sonraki turda yeni değerleri kullanır.</div>
+        <div class="lv" id="follow">
+          <div class="lv-head"><b>Ek seferler (2., 3. …)</b></div>
+          <div class="tbl-note">Gemi yetmediği için köyde kaynak kaldıysa, köy yıkıkken (barbar ordusu yokken) kalanı almaya bu askerler gider; gemi sayısı kalan kaynağa göre hesaplanır. Ek sefer köy yeniden kurulmadan varmalı ve sıradaki saldırıdan önce dönebilmeli, yoksa gönderilmez. Birim yoksa ek sefer yapılmaz.</div>
+          <div id="followUnits" style="display:grid;gap:4px"></div>
+          <div><button data-a="addUnit">+ birim</button></div>
+        </div>
         <div class="tbl-note" id="tblInfo"></div>
         <div id="tblRows" style="display:grid;gap:5px"></div>
         <div class="row">
@@ -250,8 +256,8 @@
   const unitOptions = (sel) =>
     IB.LAND_UNITS.map(([id, name]) => `<option value="${id}"${id === sel ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('');
 
-  function levelHtml(r) {
-    const units = Object.entries(r.units)
+  const unitsHtml = (units) =>
+    Object.entries(units)
       .map(
         ([id, n]) => `
         <div class="lv-unit" data-u>
@@ -261,12 +267,35 @@
         </div>`
       )
       .join('');
+
+  // Birim satırlarını okur; aynı birim iki kez seçildiyse sayıları toplanır.
+  function readUnits(el) {
+    const units = {};
+    for (const u of el.querySelectorAll('[data-u]')) {
+      const id = u.querySelector('[data-t="unit"]').value;
+      units[id] = (units[id] || 0) + (Number(u.querySelector('[data-t="count"]').value) || 0);
+    }
+    return units;
+  }
+
+  // + birim / ✕ düğmesi: birim listesine ekler ya da çıkarır.
+  function editUnits(btn, el, units) {
+    if (btn.dataset.a === 'addUnit') {
+      const free = IB.LAND_UNITS.find(([id]) => !(id in units));
+      if (free) units[free[0]] = 1;
+    } else if (btn.dataset.a === 'delUnit') {
+      const uEls = [...el.querySelectorAll('[data-u]')];
+      delete units[uEls[uEls.indexOf(btn.closest('[data-u]'))].querySelector('[data-t="unit"]').value];
+    }
+  }
+
+  function levelHtml(r) {
+    const units = unitsHtml(r.units);
     return `
       <div class="lv" data-lv>
         <div class="lv-head">
           <span>Seviye</span><input type="number" data-t="level" min="1" value="${r.level}">
           <span>Kayıp</span><input type="number" data-t="losses" min="0" value="${r.losses}">
-          <span>Ganimet</span><input type="number" data-t="lootShips" min="0" value="${r.lootShips}">
           <button class="danger" data-a="delRow" title="Seviyeyi sil">✕</button>
         </div>
         ${units || '<div class="tbl-note err">Bu seviyede asker yok; seviye kullanılamaz.</div>'}
@@ -274,16 +303,10 @@
       </div>`;
   }
 
-  // Aynı birim bir seviyede iki kez seçildiyse sayıları toplanır.
   function readTable() {
     return [...$('tblRows').querySelectorAll('[data-lv]')].map((el) => {
-      const units = {};
-      for (const u of el.querySelectorAll('[data-u]')) {
-        const id = u.querySelector('[data-t="unit"]').value;
-        units[id] = (units[id] || 0) + (Number(u.querySelector('[data-t="count"]').value) || 0);
-      }
       const num = (t) => Number(el.querySelector(`[data-t="${t}"]`).value) || 0;
-      return { level: num('level'), units, losses: num('losses'), lootShips: num('lootShips') };
+      return { level: num('level'), units: readUnits(el), losses: num('losses') };
     });
   }
 
@@ -307,6 +330,7 @@
   function buildTable() {
     const rows = IB.getTable();
     $('tblRows').innerHTML = rows.map(levelHtml).join('');
+    $('followUnits').innerHTML = unitsHtml(IB.getFollowUnits()) || '<div class="tbl-note err">Birim yok; ek sefer yapılmaz.</div>';
     tableInfo(rows);
     const passive = M.passive;
     for (const el of $('tbl').querySelectorAll('input, select, button')) el.disabled = passive;
@@ -347,16 +371,26 @@
     if (btn.dataset.a === 'delRow') {
       if (!window.confirm(`Seviye ${row.level} tablodan silinsin mi?`)) return;
       rows.splice(idx, 1);
-    } else if (btn.dataset.a === 'addUnit') {
-      const free = IB.LAND_UNITS.find(([id]) => !(id in row.units));
-      if (!free) return;
-      row.units[free[0]] = 1;
-    } else if (btn.dataset.a === 'delUnit') {
-      const uEls = [...lvEl.querySelectorAll('[data-u]')];
-      const id = uEls[uEls.indexOf(btn.closest('[data-u]'))].querySelector('[data-t="unit"]').value;
-      delete row.units[id];
-    }
+    } else editUnits(btn, lvEl, row.units);
     saveTable(rows);
+    buildTable();
+  });
+
+  // Ek sefer askerleri
+  const saveFollow = (units) => {
+    tableSelfSave = true;
+    IB.saveFollowUnits(units);
+    tableSelfSave = false;
+  };
+  $('follow').addEventListener('change', () => {
+    if (!M.passive) saveFollow(readUnits($('follow')));
+  });
+  $('follow').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-a]');
+    if (!btn || M.passive) return;
+    const units = readUnits($('follow'));
+    editUnits(btn, $('follow'), units);
+    saveFollow(units);
     buildTable();
   });
 
@@ -364,7 +398,7 @@
     if (M.passive) return;
     const rows = IB.getTable();
     const last = rows[rows.length - 1];
-    rows.push(last ? { ...last, level: last.level + 1, units: { ...last.units } } : { level: 1, units: { [IB.HOPLITE]: 1 }, losses: 0, lootShips: 1 });
+    rows.push(last ? { ...last, level: last.level + 1, units: { ...last.units } } : { level: 1, units: { [IB.HOPLITE]: 1 }, losses: 0 });
     saveTable(rows);
     buildTable();
   });

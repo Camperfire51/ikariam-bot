@@ -88,28 +88,6 @@
 
   const lock = IB.tabLock(LOCK_KEY);
 
-  // ---------- Köydeki yağma miktarı ----------
-  // Saldırı köy toparlanmadan önce gönderildiği için o an köyde sıradaki seviyenin kaynağı görünmez.
-  // Bu yüzden köy ayakta görüldükçe her seviyenin kaynağı kaydedilir (tüm rotasyonlar için ortak, en yüksek değer)
-  // ve erken gönderimde bu kayıt kullanılır. Kayıt yoksa boştaki tüm gemiler gider.
-  const LOOT_KEY = 'ikabot.barbar.loot';
-  const learnedLoot = () => {
-    try {
-      return JSON.parse(localStorage.getItem(LOOT_KEY)) || {};
-    } catch (e) {
-      return {};
-    }
-  };
-  function rememberLoot(level, total) {
-    if (!(level > 0) || !(total > 0)) return;
-    const m = learnedLoot();
-    if ((m[level] || 0) >= total) return;
-    m[level] = total;
-    try {
-      localStorage.setItem(LOOT_KEY, JSON.stringify(m));
-    } catch (e) {}
-  }
-
   // ---------- Tek bir rotasyon ----------
 
   class Rotation {
@@ -219,25 +197,25 @@
       return IB.planForLevel(level);
     }
 
-    // Gereken gemi: askerler + köydeki yağmanın tamamı, elle girilmez. Askerlerin son gemisindeki boş yere de yağma
-    // yüklenir; toplam yukarı yuvarlanır, köyde küsurat kalmaz.
-    // Örn. 500'lük gemide 200 asker yükü + 5000 kaynak = 5200 → 11 gemi, kaynağın tamamı alınır.
-    // Köy ayaktaysa kaynak köyden okunur; yıkıksa (erken gönderim) o seviye için kaydedilen değer kullanılır.
-    // Kaynak hiç bilinmiyorsa need null döner: boştaki tüm gemiler gider (kalan olursa ek seferler alır).
+    // Ana saldırının gemisi. Köy ayaktaysa kaynak oyundan (köy penceresi, arka planda) okunur ve gereken gemi
+    // hesaplanır: askerler + köydeki yağmanın tamamı, askerlerin son gemisindeki boş yere de yağma yüklenir,
+    // toplam yukarı yuvarlanır (örn. 500'lük gemide 200 asker yükü + 5000 kaynak = 5200 → 11 gemi).
+    // Erken gönderimde köy yıkık, yeni seviyenin kaynağı oyunda görünmez: tablodaki elle girilen ganimet gemisi kullanılır.
+    // Kalan kaynağı ek seferler köyden gerçek değeri okuyarak alır (bkz. followUp).
     // troopsOnShips: false ise (aynı ada) askerler gemiye binmez.
-    shipPlan(level, destroyed, bv, weight, cap, troopsOnShips) {
+    shipPlan(plan, destroyed, bv, weight, cap, troopsOnShips) {
       const troopShips = troopsOnShips ? Math.ceil(weight / cap) : 0;
-      const loot = destroyed ? learnedLoot()[level] : bv.resourceTotal;
-      if (loot === undefined || loot === null) {
-        return { troopShips, need: null, known: false, desc: `${troopShips} taşıma, seviye ${level} kaynağı henüz bilinmiyor: boştaki tüm gemiler` };
+      if (destroyed) {
+        const extra = plan.lootShips || 0;
+        return { troopShips, need: troopShips + extra, desc: `${troopShips} taşıma + ${extra} ganimet (tablodan; köy henüz kurulmadı)` };
       }
+      const loot = bv.resourceTotal;
       const carried = troopsOnShips ? weight : 0;
       const need = Math.max(troopShips, Math.ceil((carried + loot) / cap));
       return {
         troopShips,
         need,
-        known: true,
-        desc: `${troopShips} taşıma + ${need - troopShips} ganimet, köyde ${loot} kaynak${destroyed ? ' (kayıttan)' : ''}`,
+        desc: `${troopShips} taşıma + ${need - troopShips} ganimet, köyde ${loot} kaynak (oyundan)`,
       };
     }
 
@@ -347,32 +325,12 @@
       const isPlunder = (m) => m.event && (m.event.missionIconClass === 'plunder' || Number(m.event.mission) === 13);
       const own = G.ownMovementsForIsland(snap.movements, cfg.targetIslandId).filter((m) => isPlunder(m) || !touchesColony(m));
       if (own.length) {
-        let next = Math.min(...own.map((m) => Number(m.eventTime)));
-        // Köy toparlandıktan sonra, saldırımız varmadan önce köyü bir kez oku: o seviyenin kaynağı öğrenilir.
-        const la = st.lastAttack;
-        if (la && !la.evaluated && la.recoverAt && !learnedLoot()[la.level]) {
-          if (now >= la.recoverAt + 3) {
-            const bv = await G.barbarianVillage(cfg.targetIslandId);
-            const island = await G.island(cfg.targetIslandId);
-            const standing = Number(island.barbarians.destroyed) !== 1 && bv.level === la.level;
-            if (standing) {
-              rememberLoot(bv.level, bv.resourceTotal);
-              this.log(`Seviye ${bv.level} köyünde ${bv.resourceTotal} kaynak var; sonraki turlar için kaydedildi.`);
-            }
-            // Köy henüz kurulmadıysa kısa süre sonra tekrar bak; 2 dk içinde olmazsa bu tur için vazgeç.
-            if (standing || now > la.recoverAt + 120) la.recoverAt = null;
-            else next = Math.min(next, now + 10);
-            this.save();
-          } else {
-            next = Math.min(next, la.recoverAt + 5);
-          }
-        }
+        const next = Math.min(...own.map((m) => Number(m.eventTime)));
         this.setStatus(`Barbar adasında ${own.length} hareketimiz var; ${fmtTime(next)} bekleniyor.`);
         return next - now + 5;
       }
 
       const { bv, b, destroyed, level } = await this.readVillage(snap.movements);
-      if (!destroyed) rememberLoot(bv.level, bv.resourceTotal);
 
       // Son saldırının sonucunu değerlendir. Kayıt sadece bu güvenlik kontrolü için tutulur ve yalnızca
       // yakın zamanda bu sekmeden gönderilmiş, oyundaki köy seviyesiyle uyumlu bir saldırıysa dikkate alınır.
@@ -463,11 +421,11 @@
       }
 
       const capacity = st.shipCapacity || 500;
-      const est = this.shipPlan(level, destroyed, bv, weight, capacity, true);
+      const est = this.shipPlan(plan, destroyed, bv, weight, capacity, true);
 
       if (sendAt - now > 90) {
         this.setStatus(
-          `Seviye ${level}: ${IB.describeUnits(plan.units)}, ${est.need === null ? 'boştaki tüm gemiler' : `~${est.need} gemi`} (${est.desc}). Gönderim ${fmtTime(sendAt)} (${fmtDur(sendAt - now)} sonra).` +
+          `Seviye ${level}: ${IB.describeUnits(plan.units)}, ~${est.need} gemi (${est.desc}). Gönderim ${fmtTime(sendAt)} (${fmtDur(sendAt - now)} sonra).` +
             (timing ? `\n${timing.desc}` : '')
         );
         return sendAt - now - 60;
@@ -497,7 +455,7 @@
       }
       if (form.shipCapacity) st.shipCapacity = form.shipCapacity;
       if (form.journeyTime) st.journey = form.journeyTime;
-      const ships = this.shipPlan(level, destroyed, bv, weight, form.shipCapacity || capacity, form.isForeignIsland !== false);
+      const ships = this.shipPlan(plan, destroyed, bv, weight, form.shipCapacity || capacity, form.isForeignIsland !== false);
       const troopShips = ships.troopShips;
       const free = form.freeTransporters !== null ? form.freeTransporters : snap.freeTransporters;
       // Formdaki yolculuk süresi tahminden farklıysa gönderim zamanını oyunun verdiği süreyle yeniden hesapla.
@@ -520,9 +478,9 @@
         return next - now + 5;
       }
       delete st.notified.fewShips; // eski sürümden kalan alan
-      const total = Math.min(ships.need === null ? free : ships.need, free);
+      const total = Math.min(ships.need, free);
       const lootShips = total - troopShips;
-      const short = ships.need !== null && free < ships.need;
+      const short = free < ships.need;
 
       const sent = { ...plan.units };
       await G.sendBarbarianAttack({
@@ -538,8 +496,6 @@
       st.lastAttack = {
         level,
         sentAt: now,
-        // Köy bu anda toparlanır: kaynağı henüz bilinmeyen seviye o an okunup kaydedilir.
-        recoverAt: destroyed && !ships.known ? bv.cooldownEnd : null,
         journey: form.journeyTime,
         evaluated: false,
         units: sent,
@@ -555,8 +511,9 @@
     // ---------- Ek seferler (2., 3. …) ----------
     // Ana saldırının gemisi yetmediyse köyde kaynak kalır. Köy yıkıkken (barbar ordusu yok edilmiş) kalan kaynak,
     // tablodaki "Ek seferler" askerleriyle alınır; gemi sayısı kalana göre hesaplanır, boşta o kadar yoksa hepsi gider.
-    // Biri dönmeden diğeri gitmez (barbar adasında hareketimiz varken tick bekler), dönünce köy yeniden okunur;
-    // kaynak bitene kadar 2., 3. … sefer yapılır.
+    // Kaynak her seferde oyundan (köy penceresi, arka planda) okunur, kayıt kullanılmaz. Biri dönmeden diğeri
+    // gitmez (barbar adasında hareketimiz varken tick bekler); dönünce köy yeniden okunur ve kaynak bitene kadar
+    // gerektiği kadar ek sefer yapılır, sayı sınırı yoktur.
     // Güvenlik: ek sefer köy yeniden kurulmadan varmalı (asla barbar ordusuyla savaşmaz) ve arkasından saldırı
     // gidecekse o saldırının gönderiminden önce dönmüş olmalı. Zaman yetmiyorsa kalan kaynak bırakılır.
     // Döner: beklenecek saniye; null ise ek sefer yok, ana akış sürer.
@@ -566,7 +523,7 @@
       const left = bv.resourceTotal;
       const key = `${bv.level}:${bv.cooldownEnd}`;
       const n = st.followUp && st.followUp.key === key ? st.followUp.count + 1 : 1;
-      const label = `${n + 1}. sefer`;
+      const label = 'ek sefer';
       // Bu toparlanma için kalıcı vazgeçme: günlüğe bir kez yazılır, ana akış sürer.
       const skip = (msg) => {
         if (st.notified.followUp !== key + msg) {
@@ -595,7 +552,7 @@
         if (arrive > bv.cooldownEnd - MARGIN) return false;
         return mainSendAt === null || arrive + journey + MARGIN <= mainSendAt;
       };
-      const noTime = `${label} köy yeniden kurulmadan varamaz${mainSendAt !== null ? ' ya da sıradaki saldırıdan önce dönemez' : ''}; alınmayacak.`;
+      const noTime = `Ek sefer köy yeniden kurulmadan varamaz${mainSendAt !== null ? ' ya da sıradaki saldırıdan önce dönemez' : ''}; alınmayacak.`;
       const giveUp = () => {
         st.followUpGaveUp = key; // bu toparlanmada zaman bir daha yetmez: tekrar hesaplanmaz
         return skip(noTime);
@@ -646,7 +603,7 @@
       st.followUp = { key, count: n, sentAt: now };
       this.save();
       this.log(
-        `${label} gönderildi → seviye ${bv.level} köyünde kalan ${left} kaynak için ${IB.describeUnits(units)}, ${troopShips} taşıma + ${lootShips} ganimet gemisi` +
+        `Ek sefer gönderildi (bu köy için ${n}.) → seviye ${bv.level} köyünde kalan ${left} kaynak için ${IB.describeUnits(units)}, ${troopShips} taşıma + ${lootShips} ganimet gemisi` +
           (total < need ? `; gemi yetmedi (${need} gerekli, ${free} boşta), kalanı sonraki sefere` : '') +
           `, yolculuk ${fmtDur(form.journeyTime || 0)}.`
       );

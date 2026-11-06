@@ -70,10 +70,10 @@
       </div>
       <div class="status" id="passiveNote" style="display:none">Bot başka bir sekmede çalışıyor. Bu sekme sadece durumu gösterir; başlatma, durdurma ve ayarları çalışan sekmeden yap.</div>
       <div class="tbl" id="tbl" style="display:none">
-        <div class="tbl-note">Her seviyede tam olarak buradaki askerler gider. Kayıp: o seviyede ölmesi beklenen hoplit (asker havuzu buna göre fazladan basar). Gemi sayısı köyün kaynağından otomatik hesaplanır; boşta o kadar gemi yoksa boştakilerin hepsiyle gidilir. Değişiklikler hemen kaydedilir, çalışan rotasyonlar bir sonraki turda yeni değerleri kullanır.</div>
+        <div class="tbl-note">Her seviyede tam olarak buradaki askerler gider. Kayıp: o seviyede ölmesi beklenen hoplit (asker havuzu buna göre fazladan basar). Ganimet: erken gönderimde (köy henüz kurulmamışken kaynağı oyunda görünmez) askerlerin gemisine ek giden ganimet gemisi. Köy ayaktaysa gemi köyün kaynağından otomatik hesaplanır. Boşta o kadar gemi yoksa boştakilerin hepsiyle gidilir. Değişiklikler hemen kaydedilir, çalışan rotasyonlar bir sonraki turda yeni değerleri kullanır.</div>
         <div class="lv" id="follow">
-          <div class="lv-head"><b>Ek seferler (2., 3. …)</b></div>
-          <div class="tbl-note">Gemi yetmediği için köyde kaynak kaldıysa, köy yıkıkken (barbar ordusu yokken) kalanı almaya bu askerler gider; gemi sayısı kalan kaynağa göre hesaplanır. Ek sefer köy yeniden kurulmadan varmalı ve sıradaki saldırıdan önce dönebilmeli, yoksa gönderilmez. Birim yoksa ek sefer yapılmaz.</div>
+          <div class="lv-head"><b>Ek seferler</b></div>
+          <div class="tbl-note">Saldırı kazanılıp köy yıkıldıktan (barbar ordusu yok edildikten) sonra köyde kaynak kaldıysa, kalanı almaya bu askerler gider. Kalan kaynak her seferde oyundan okunur, gemi ona göre hesaplanır; kaynak bitene kadar gerektiği kadar sefer yapılır. Ek sefer köy yeniden kurulmadan varmalı ve sıradaki saldırıdan önce dönebilmeli, yoksa gönderilmez. Birim yoksa ek sefer yapılmaz.</div>
           <div id="followUnits" style="display:grid;gap:4px"></div>
           <div><button data-a="addUnit">+ birim</button></div>
         </div>
@@ -296,6 +296,7 @@
         <div class="lv-head">
           <span>Seviye</span><input type="number" data-t="level" min="1" value="${r.level}">
           <span>Kayıp</span><input type="number" data-t="losses" min="0" value="${r.losses}">
+          <span>Ganimet</span><input type="number" data-t="lootShips" min="0" value="${r.lootShips}">
           <button class="danger" data-a="delRow" title="Seviyeyi sil">✕</button>
         </div>
         ${units || '<div class="tbl-note err">Bu seviyede asker yok; seviye kullanılamaz.</div>'}
@@ -306,7 +307,7 @@
   function readTable() {
     return [...$('tblRows').querySelectorAll('[data-lv]')].map((el) => {
       const num = (t) => Number(el.querySelector(`[data-t="${t}"]`).value) || 0;
-      return { level: num('level'), units: readUnits(el), losses: num('losses') };
+      return { level: num('level'), units: readUnits(el), losses: num('losses'), lootShips: num('lootShips') };
     });
   }
 
@@ -398,7 +399,7 @@
     if (M.passive) return;
     const rows = IB.getTable();
     const last = rows[rows.length - 1];
-    rows.push(last ? { ...last, level: last.level + 1, units: { ...last.units } } : { level: 1, units: { [IB.HOPLITE]: 1 }, losses: 0 });
+    rows.push(last ? { ...last, level: last.level + 1, units: { ...last.units } } : { level: 1, units: { [IB.HOPLITE]: 1 }, losses: 0, lootShips: 1 });
     saveTable(rows);
     buildTable();
   });

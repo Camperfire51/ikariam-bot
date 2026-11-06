@@ -36,36 +36,37 @@
   ];
   IB.UNIT_NAMES = Object.fromEntries(IB.LAND_UNITS);
 
-  // Varsayılan tablo: seviye, hoplit, kuşatma, kayıp (hoplit). Gemi sayısı elle girilmez, köyün kaynağından hesaplanır.
+  // Varsayılan tablo: seviye, hoplit, kuşatma, kayıp (hoplit), ganimet gemisi.
+  // Ganimet gemisi sadece erken gönderimde (köy henüz kurulmamışken, kaynağı oyunda görünmezken) kullanılır.
   const C = (n) => [CATAPULT, n];
   const DEFAULT_ROWS = [
-    [1, 2, null, 0],
-    [2, 3, null, 0],
-    [3, 6, null, 0],
-    [4, 9, null, 0],
-    [5, 33, null, 0],
-    [6, 43, null, 0],
-    [7, 54, null, 0],
-    [8, 72, null, 0],
-    [9, 72, null, 0],
-    [10, 72, C(12), 2],
-    [11, 90, C(12), 2],
-    [12, 90, C(12), 4],
-    [13, 90, C(12), 4],
-    [14, 102, C(12), 12],
-    [15, 115, C(12), 16],
-    [16, 164, C(12), 20],
-    [17, 167, C(12), 26],
-    [18, 187, C(12), 46],
-    [19, 194, C(12), 48],
-    [20, 206, C(12), 67],
+    [1, 2, null, 0, 1],
+    [2, 3, null, 0, 2],
+    [3, 6, null, 0, 2],
+    [4, 9, null, 0, 2],
+    [5, 33, null, 0, 3],
+    [6, 43, null, 0, 4],
+    [7, 54, null, 0, 4],
+    [8, 72, null, 0, 5],
+    [9, 72, null, 0, 7],
+    [10, 72, C(12), 2, 8],
+    [11, 90, C(12), 2, 10],
+    [12, 90, C(12), 4, 12],
+    [13, 90, C(12), 4, 15],
+    [14, 102, C(12), 12, 18],
+    [15, 115, C(12), 16, 21],
+    [16, 164, C(12), 20, 25],
+    [17, 167, C(12), 26, 29],
+    [18, 187, C(12), 46, 34],
+    [19, 194, C(12), 48, 38],
+    [20, 206, C(12), 67, 44],
   ];
 
   IB.defaultTable = () =>
-    DEFAULT_ROWS.map(([level, hoplites, siege, losses]) => {
+    DEFAULT_ROWS.map(([level, hoplites, siege, losses, lootShips]) => {
       const units = { [HOPLITE]: hoplites };
       if (siege) units[siege[0]] = siege[1];
-      return { level, units, losses };
+      return { level, units, losses, lootShips };
     });
 
   const int = (v) => Math.max(0, Math.floor(Number(v) || 0));
@@ -77,7 +78,11 @@
   };
 
   // Bozuk/eksik satırlar temizlenir; aynı seviyeden ikincisi atılır. Sonuç seviyeye göre sıralıdır.
-  // Eski sürümlerdeki elle girilen ganimet gemisi (lootShips) atılır.
+  // Ganimet gemisi kaydı olmayan satır (bir önceki sürüm bu alanı sildi) varsayılan tablonun değerini alır.
+  const defaultLoot = (level) => {
+    const d = DEFAULT_ROWS.find((r) => r[0] === level) || DEFAULT_ROWS[DEFAULT_ROWS.length - 1];
+    return d[4];
+  };
   function normalize(rows) {
     const seen = new Set();
     const out = [];
@@ -85,7 +90,8 @@
       const level = int(r && r.level);
       if (!level || seen.has(level)) continue;
       seen.add(level);
-      out.push({ level, units: cleanUnits(r && r.units), losses: int(r.losses) });
+      const lootShips = r.lootShips === undefined || r.lootShips === null ? defaultLoot(level) : int(r.lootShips);
+      out.push({ level, units: cleanUnits(r && r.units), losses: int(r.losses), lootShips });
     }
     return out.sort((a, b) => a.level - b.level);
   }
@@ -163,7 +169,7 @@
   IB.planForLevel = (level) => {
     const row = IB.getTable().find((r) => r.level === level);
     if (!row || !Object.keys(row.units).length) return null;
-    return { level, units: { ...row.units }, expectedLosses: row.losses };
+    return { level, units: { ...row.units }, expectedLosses: row.losses, lootShips: row.lootShips };
   };
 
   IB.describeUnits = (u) =>

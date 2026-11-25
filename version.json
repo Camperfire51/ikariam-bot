@@ -1,5 +1,5 @@
 {
-  "version": "2026.11.26-0159",
+  "version": "2026.11.26-0204",
   "files": [
     "src/api.js",
     "src/table.js",
@@ -14,6 +14,8 @@
     "src/research-ui.js",
     "src/deney.js",
     "src/deney-ui.js",
+    "src/ticaret.js",
+    "src/ticaret-ui.js",
     "src/update.js"
   ],
   "core": [
@@ -55,6 +57,14 @@
       "files": [
         "src/deney.js",
         "src/deney-ui.js"
+      ]
+    },
+    {
+      "id": "ticaret",
+      "name": "Ticari Rota",
+      "files": [
+        "src/ticaret.js",
+        "src/ticaret-ui.js"
       ]
     }
   ]

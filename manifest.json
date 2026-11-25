@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Ikariam Barbar Rotasyonu",
   "version": "0.1.0",
-  "description": "Barbar rotasyonu, inşaat sırası, mucit atölyesi araştırma sırası ve akademi deneylerini oyun sekmesi içinde otomatikleştirir.",
+  "description": "Barbar rotasyonu, inşaat sırası, mucit atölyesi araştırma sırası, akademi deneylerini ve ticari rotaları oyun sekmesi içinde otomatikleştirir.",
   "content_scripts": [
     {
       "matches": [
@@ -25,6 +25,8 @@
         "src/research-ui.js",
         "src/deney.js",
         "src/deney-ui.js",
+        "src/ticaret.js",
+        "src/ticaret-ui.js",
         "src/update.js"
       ],
       "run_at": "document_idle",

@@ -14,6 +14,7 @@
     ['ikabot-build-host', 'İnşaat'],
     ['ikabot-research-host', 'Araştırma'],
     ['ikabot-deney-host', 'Deney'],
+    ['ikabot-ticaret-host', 'Ticaret'],
   ];
 
   // Paneller gizliyken sayfaya yer açılır; güncelleme uyarısı ve çubuğun kendisi gizlenmez.

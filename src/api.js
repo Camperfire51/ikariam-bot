@@ -203,10 +203,10 @@
   }
 
   // ---------- Bot başına duraklatma ----------
-  // Her bot (barbar, inşaat, araştırma, deney) kendi tikiyle anında durdurulup devam ettirilir; biri kapalıyken
+  // Her bot (barbar, inşaat, araştırma, deney, ticaret) kendi tikiyle anında durdurulup devam ettirilir; biri kapalıyken
   // diğerleri çalışmaya devam eder. Hiçbir ayar/kayıt silinmez; sadece o botun isteği sunucuya gitmez ve
   // döngüsü bekler. Durum tarayıcıda saklanır, tüm sekmelerde ortaktır ve yenilemede korunur.
-  IB.BOTS = ['barbar', 'insaat', 'arastirma', 'deney'];
+  IB.BOTS = ['barbar', 'insaat', 'arastirma', 'deney', 'ticaret'];
   const PAUSE_PREFIX = 'ikabot.paused.';
   const OLD_PAUSE_KEY = 'ikabot.paused';
   // Eski genel duraklatma açıksa her bot duraklatılmış olarak devralınır.

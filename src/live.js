@@ -4,7 +4,7 @@
   const IB = window.IkaBot;
 
   const BAD =
-    /durdu:|başarısız|hata|yetersiz|yetmiyor|eksik|bulunamadı|bulunamıyor|yapılamıyor|yapılamadı|okunamadı|kabul etmedi|reddet|basılamıyor|basılamadı|açılmadı|başlatılamadı|düzelt|engel|bağlantı|kuyruğu dolu|gemi bekleniyor/i;
+    /durdu:|başarısız|hata|yetersiz|yetmiyor|eksik|bulunamadı|bulunamıyor|yapılamıyor|yapılamadı|okunamadı|kabul etmedi|reddet|basılamıyor|basılamadı|açılmadı|başlatılamadı|gönderilemedi|geçersiz|kaçırıldı|düzelt|engel|bağlantı|kuyruğu dolu|gemi bekleniyor/i;
   const GOOD = /yapılıyor|araştırılıyor|gönderildi|yapıldı|eğitime verildi|başladı|yeterli|hazır|kontrol ediliyor/i;
 
   // Durum yazısının rengi.

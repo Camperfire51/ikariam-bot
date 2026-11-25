@@ -13,7 +13,7 @@ Bot kodu GitHub Pages'te durur (https://camperfire51.github.io/ikariam-bot/). Ch
 Güncelleme: yeni sürüm yayınlanınca açık oyun sekmesinin üstünde **"Bot güncellemesi var"** uyarısı çıkar (10 dakikada bir bakılır). **Yenile**'ye basmak ya da sayfayı yenilemek yeterli; çalışan botlar kaldığı yerden devam eder.
 
 ## Modüller (eklenti penceresi)
-Chrome'un sağ üstündeki eklenti simgesine (yapboz → Ikariam Bot; sabitlemek için raptiye) tıklayınca modül listesi açılır: Barbar Rotasyonu, İnşaat Sırası, Araştırma Sırası, Deney Botu. **Kaldır** ile modül oyundan tamamen kalkar (paneli görünmez, hiç çalışmaz); **Ekle** ile geri gelir. Ayarlar, sıralar ve kayıtlar silinmez; eklenince kaldığı yerden devam eder. Değişince açık oyun sekmeleri kendiliğinden yenilenir. Seçim o bilgisayardaki Chrome'a özeldir. (Bu pencere yükleyici 1.4.0 ve sonrasında var.)
+Chrome'un sağ üstündeki eklenti simgesine (yapboz → Ikariam Bot; sabitlemek için raptiye) tıklayınca modül listesi açılır: Barbar Rotasyonu, İnşaat Sırası, Araştırma Sırası, Deney Botu, Ticari Rota. **Kaldır** ile modül oyundan tamamen kalkar (paneli görünmez, hiç çalışmaz); **Ekle** ile geri gelir. Ayarlar, sıralar ve kayıtlar silinmez; eklenince kaldığı yerden devam eder. Değişince açık oyun sekmeleri kendiliğinden yenilenir. Seçim o bilgisayardaki Chrome'a özeldir. (Bu pencere yükleyici 1.4.0 ve sonrasında var.)
 
 Modüllerin dosyaları `modules.json`'da tanımlıdır; her dosya ya çekirdekte (`core`) ya da tek bir modülde olmalı (`release.js` kontrol eder).
 
@@ -100,8 +100,20 @@ Araştırma panelinin üstündeki **Deney Botu** paneli akademide kristalle dene
 - Deney yapmak için **Bilim → Deneyler** araştırması gerekir; yapılmamışsa bot "deney bölümü bulunamadı" yazıp bekler.
 - Hata olursa (oturum düştü, captcha vb.) durmaz; şehrin satırında görünür ve birkaç dakika sonra tekrar dener. Sayfa yenilenirse kaldığı yerden devam eder.
 
+## Ticari Rota (ayrı bot)
+Deney panelinin üstündeki **Ticari Rota** paneli her gün belirli saatte kendi şehirlerin arasında hammadde gönderir; diğer botlardan tamamen ayrıdır, **Açık** tiki açıkken çalışır.
+
+- Rota: kaynak şehir → hedef şehir, hammadde (odun, şarap, mermer, kristal, sülfür), miktar, saat. **+ Rota ekle** ile istediğin kadar rota eklenir, ✕ ile silinir. Değiştirmek için silip yeniden ekle.
+- Her rota her gün o saatte (rastgele 5-60 sn sonra) bir kez gönderilir. Eklendiği an saati geçmişse ilk gönderim ertesi gün olur.
+- Gönderim hep tam miktardır; yarım gönderim yapılmaz. Taşıma, oyunun taşıma ekranındaki kendi formu okunup gönderilerek yapılır; gemi sayısı miktar / gemi kapasitesi (ekrandan okunur), yukarı yuvarlanır. Ücretli taşıma seçeneklerine (ambrosia, premium) dokunulmaz.
+- **Gönderim mümkün değilse** (kaynak şehirde o hammadde yetmiyor, boşta gemi yetmiyor, oyun reddetti…) bütün rotalar için ortak iki ayara bakılır:
+  - **Tekrar dene** açıksa her **N dk**'da bir tekrar denenir. Ertesi günün aynı saatine kadar (bir tur dolana kadar) gönderilemezse o günkü istek geçersiz olur; günlüğe yazılır, bildirim gelir ve sıradaki günün isteği başlar. Bir günün isteği diğerine eklenmez.
+  - **Tekrar dene** kapalıysa o günkü istek ilk denemede yapılamazsa geçersizdir. Bot saatinde çalışmıyorduysa (sayfa ya da bot kapalıydı) en fazla 15 dk geç gönderilir, daha geç kalındıysa o gün atlanır.
+- Gönderimden sonra kaynak şehirdeki hammaddenin azaldığı oyunun yanıtından doğrulanır. Bağlantı/oturum hatasında bot durmaz, birkaç dakika sonra tekrar dener.
+- Rotalar ve her rotanın son gönderildiği gün tarayıcıda saklanır; sayfa yenilense de aynı gün iki kez gönderilmez.
+
 ## Botları ayrı ayrı açıp kapama
-Her panelin başlığında kendi **Açık** tiki var (barbar, inşaat, araştırma, deney). Bu tik botun tek aç/kapa düğmesidir (Başlat/Durdur yok). Birinin tikini kaldırınca sadece o bot anında durur; diğerleri çalışmaya devam eder. Kapalı botun hiçbir isteği sunucuya gitmez, ayarları ve sırası silinmez; tik tekrar açılınca kaldığı yerden, oyundan taze okuyarak devam eder. Tikler tüm sekmelerde ortaktır ve sayfa yenilense de korunur. Eski sürümde durdurulmuş ve yapacak işi olan bot, güncellemeyle kapalı devralınır (kendiliğinden başlamaz).
+Her panelin başlığında kendi **Açık** tiki var (barbar, inşaat, araştırma, deney, ticari rota). Bu tik botun tek aç/kapa düğmesidir (Başlat/Durdur yok). Birinin tikini kaldırınca sadece o bot anında durur; diğerleri çalışmaya devam eder. Kapalı botun hiçbir isteği sunucuya gitmez, ayarları ve sırası silinmez; tik tekrar açılınca kaldığı yerden, oyundan taze okuyarak devam eder. Tikler tüm sekmelerde ortaktır ve sayfa yenilense de korunur. Eski sürümde durdurulmuş ve yapacak işi olan bot, güncellemeyle kapalı devralınır (kendiliğinden başlamaz).
 
 ## Hatalar
 Botlar kendiliğinden durmaz. Hata olunca (bağlantı, oturum düşmesi, captcha, oyunun reddetmesi, başarısız saldırı…) sebep durum satırında kırmızı görünür, günlüğe ve bildirime bir kez yazılır, sonra tekrar denenir: bağlantı hatasında 30 sn'den başlayıp en fazla 5 dk'ya kadar seyrekleşerek, diğer hatalarda 5 dk sonra. Düşman oyuncu hareketinde (saldırı, blokaj vb.) barbar botu hiçbir şey göndermeden 3 dk'da bir bakar; barbarların bize saldırısı engel değildir.

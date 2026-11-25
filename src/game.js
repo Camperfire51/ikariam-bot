@@ -428,6 +428,80 @@
       return { messages: r.successes };
     };
 
+    // ---------- Kaynak taşıma (ticari rota) ----------
+    // Hammadde -> taşıma formundaki alan ve headerData.currentResources anahtarı.
+    G.CARGO = {
+      resource: { field: 'cargo_resource', key: 'resource' },
+      1: { field: 'cargo_tradegood1', key: '1' },
+      2: { field: 'cargo_tradegood2', key: '2' },
+      3: { field: 'cargo_tradegood3', key: '3' },
+      4: { field: 'cargo_tradegood4', key: '4' },
+    };
+
+    // Bir ticaret gemisinin taşıdığı miktar: taşıma ekranının betiğinden okunur (okunamazsa null).
+    function shipCapacity(html) {
+      const pats = [
+        /ship_capacity\s*[=:]\s*["']?(\d+)/,
+        /singleTransporterCapacity\D{0,5}(\d+)/,
+        /transporterCapacity\D{0,5}(\d+)/,
+      ];
+      for (const p of pats) {
+        const m = html.match(p);
+        if (m && Number(m[1]) > 0) return Number(m[1]);
+      }
+      const mi = missionInfo(html);
+      return mi.shipCapacity > 0 ? mi.shipCapacity : null;
+    }
+
+    // Taşıma formu (fromCityId'deki kaynağı kendi şehrimiz toCityId'ye yollamak için). İstek fromCityId'yi aktif
+    // şehir yapar; dönen başlıktaki kaynaklar ve boştaki gemiler o şehrindir. Form başka şehirden açıldıysa kullanılmaz.
+    G.transportForm = async (fromCityId, toCityId) => {
+      const r = await request({
+        view: 'transport',
+        destinationCityId: toCityId,
+        backgroundView: 'city',
+        currentCityId: fromCityId,
+        templateView: 'transport',
+      });
+      const form = IB.readForms(r.html).find(
+        (f) => f.fields.action === 'transportOperations' && f.fields.function === 'loadTransportersWithFreight'
+      );
+      if (!form) throw new GameError('Taşıma formu açılmadı' + formFailReason(r), 'noform');
+      const dest = form.fields.destinationCityId;
+      if (Number(r.background.id) !== Number(fromCityId) || (dest !== undefined && Number(dest) !== Number(toCityId)))
+        throw new GameError('Taşıma formu yanlış şehirden açıldı; gönderilmedi.', 'noform');
+      const h = r.header;
+      return {
+        fields: form.fields,
+        resources: h.currentResources || {},
+        freeTransporters: Number(h.freeTransporters),
+        shipCapacity: shipCapacity(r.html),
+      };
+    };
+
+    // Formu verilen hammadde ve miktarla doldurup gönderir. Ücretli seçenekler (premium/jet tahrik/ambrosia) hiçbir
+    // koşulda kullanılmaz. Dönüş: oyunun mesajları ve gönderimden sonra kaynak şehirdeki o hammaddenin miktarı.
+    G.sendTransport = async ({ fromCityId, toCityId, form, res, amount, ships }) => {
+      const cargo = G.CARGO[res];
+      if (!cargo) throw new GameError('Bilinmeyen hammadde: ' + res, 'game');
+      const fields = { ...form.fields };
+      for (const k of Object.keys(fields)) {
+        if (/^cargo_(resource|tradegood\d)$/.test(k)) fields[k] = '0';
+        if (/premium|jet|ambros|price/i.test(k)) fields[k] = '0';
+      }
+      if (!(cargo.field in fields)) throw new GameError(`Taşıma formunda ${cargo.field} alanı yok.`, 'game');
+      fields[cargo.field] = String(amount);
+      fields.transporters = String(ships);
+      if ('max_capacity' in fields && 'capacity' in fields) fields.capacity = fields.max_capacity; // gemiler tam yüklü
+      if (!('destinationCityId' in fields)) fields.destinationCityId = String(toCityId);
+      Object.assign(fields, { backgroundView: 'city', currentCityId: fromCityId, templateView: 'transport' });
+      const r = await request(fields, { post: true });
+      const cur = r.header.currentResources;
+      const after = cur && cur[cargo.key] !== undefined ? Number(cur[cargo.key]) : null;
+      const sameCity = Number(r.background.id) === Number(fromCityId);
+      return { errors: r.errors, successes: r.successes, after: sameCity ? after : null };
+    };
+
     G.barracksView = async (cityId, position) =>
       request({ view: 'barracks', cityId, position, backgroundView: 'city', currentCityId: cityId });
 

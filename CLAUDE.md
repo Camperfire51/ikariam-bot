@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-Ikariam için Chrome eklentisi olarak çalışan bot (barbar rotasyonu, inşaat sırası, araştırma sırası, deney botu).
+Ikariam için Chrome eklentisi olarak çalışan bot (barbar rotasyonu, inşaat sırası, araştırma sırası, deney botu,
+ticari rota).
 Kullanıcı Türkçe konuşur; arayüz metinleri, günlükler, kod yorumları ve commit mesajları Türkçedir.
 Özellikler ve davranışların ayrıntılı tarifi **README.md**'de; bir davranışı değiştirince README'yi de güncelle.
 
@@ -16,7 +17,8 @@ Kullanıcı Türkçe konuşur; arayüz metinleri, günlükler, kod yorumları ve
   - `src/table.js` — barbar seviye tablosu (localStorage). `src/live.js` — panellerin canlı durum satırı/renkleri.
   - `src/dock.js` — sol alttaki bot çubuğu, 📋 Günlük kopyalama. `src/update.js` — "Bot güncellemesi var" uyarısı.
 - Modüller: barbar (`rotation.js`, `ui.js`), inşaat (`build.js`, `build-ui.js`), araştırma (`research.js`,
-  `research-ui.js`), deney (`deney.js`, `deney-ui.js`). Botlar birbirinden bağımsızdır, sadece istek katmanını paylaşır.
+  `research-ui.js`), deney (`deney.js`, `deney-ui.js`), ticaret (`ticaret.js`, `ticaret-ui.js`). Botlar birbirinden bağımsızdır, sadece istek katmanını paylaşır.
+- Yeni bot eklerken: `IB.BOTS` (`src/api.js`, Açık tiki) ve `src/dock.js`'teki `BOTS` listesine de ekle.
 - Kalıcı durum oyun sayfasının localStorage'ında, `ikabot.*` anahtarlarıyla tutulur.
 - Kök `manifest.json` eski yöntemle yerel eklenti olarak da yüklenebilir; dosya listesinin asıl kaynağı odur.
 
@@ -48,3 +50,8 @@ oyundan taze okur, kendi kaydına güvenmez; bu ilkeyi koru.
   içinde, bekleme ~4 saat. Bot (`experimentForm` in `src/game.js`, `G.doExperiment`) formu useAthenasScroll=0 ve
   payWithAmbrosia=0 zorlanarak POST eder. Kullanıcının kendi hesabında Deneyler araştırması yok. Doğrulanmamış:
   bekleme süresinde ekranın nasıl göründüğü ve POST yanıtı. Sorun çıkarsa Günlük dökümünü ve `ikabot.deney.log`'u iste.
+- **Ticari rota botu canlıda henüz doğrulanmadı.** Taşıma isteği oyunun formundan kuruluyor (`G.transportForm`/
+  `G.sendTransport` in `src/game.js`): view=transport, form action=transportOperations,
+  function=loadTransportersWithFreight; cargo_resource / cargo_tradegood1..4, transporters = ceil(miktar / gemi kapasitesi),
+  premium/jet/ambrosia/price alanları 0 zorlanır. Gemi kapasitesi `ship_capacity` vb. betik değişkeninden okunuyor
+  (okunamazsa 500 sayılır ve günlüğe form alan adları yazılır). Sorun çıkarsa Günlük dökümünü ve `ikabot.ticaret.log`'u iste.

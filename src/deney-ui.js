@@ -45,14 +45,10 @@
     ${IB.live.CSS}
   </style>
   <div class="panel collapsed" id="panel">
-    <div class="head" id="head"><span class="dot" id="dot"></span><b id="title">Deney Botu</b><label class="onoff" id="onoffLbl" title="Kapatınca sadece deney botu duraklar; diğer botlar çalışmaya devam eder. Hiçbir kayıt silinmez, açınca kaldığı yerden devam eder."><input type="checkbox" id="onoff"> Açık</label><span id="toggle">▲</span></div>${IB.live.HTML}
+    <div class="head" id="head"><span class="dot" id="dot"></span><b id="title">Deney Botu</b><label class="onoff" id="onoffLbl" title="Açıkken bot sürekli çalışır; sorun çıkarsa durmaz, tekrar tekrar dener. Kapatınca sadece deney botu durur, diğer botlar çalışmaya devam eder. Hiçbir kayıt silinmez, açınca kaldığı yerden devam eder."><input type="checkbox" id="onoff"> Açık</label><span id="toggle">▲</span></div>${IB.live.HTML}
     <div class="body">
-      <div class="row">
-        <button class="primary" id="start">Başlat</button>
-        <button id="stop">Durdur</button>
-      </div>
       <div class="status" id="status"></div>
-      <div class="note">Seçili şehirlerin akademisinde kristalle deney yapılır; bekleme süresi ya da kristal eksikse beklenir. Ambrosialı deneye dokunulmaz. Şehir seçimi çalışırken de değiştirilebilir.</div>
+      <div class="note">Açık tiki açıkken seçili şehirlerin akademisinde kristalle deney yapılır; bekleme süresi ya da kristal eksikse beklenir. Ambrosialı deneye dokunulmaz. Şehir seçimi istenen an değiştirilebilir.</div>
       <div class="cities" id="cities"></div>
       <div class="log" id="log"></div>
     </div>
@@ -82,36 +78,23 @@
     render();
   });
 
-  $('start').addEventListener('click', () => {
-    if (!D.cities.length) {
-      window.alert('Önce en az bir şehir seç.');
-      return;
-    }
-    if (!window.confirm('Deney botu başlasın mı? Seçili şehirlerde imkan oldukça kristal harcanarak deney yapılacak. Ambrosia kullanılmaz.')) return;
-    D.start();
-    render();
-  });
-  $('stop').addEventListener('click', () => { D.stop(); render(); });
-
-  // Sadece deney botunun aç/kapa tiki. Tıklamak paneli açıp kapamasın.
+  // Deney botunun tek aç/kapa düğmesi. Tıklamak paneli açıp kapamasın.
   $('onoffLbl').addEventListener('click', (e) => e.stopPropagation());
   $('onoff').addEventListener('change', () => {
     const pause = !$('onoff').checked;
     IB.setPaused('deney', pause);
-    D.log(pause ? 'Deney botu duraklatıldı; şehir listesi ve kayıtlar korunuyor. Diğer botlar etkilenmez.' : 'Deney botu devam ettirildi; kaldığı yerden sürüyor.');
+    D.log(pause ? 'Deney botu kapatıldı; şehir listesi ve kayıtlar korunuyor. Diğer botlar etkilenmez.' : 'Deney botu açıldı; kaldığı yerden sürüyor.');
     render();
   });
   IB.onPauseChange((bot) => { if (bot === 'deney') render(); });
 
   function render() {
     const passive = D.passive;
-    const err = !D.running && /^Durdu: /.test(D.status);
     const paused = IB.isPaused('deney');
+    const err = !paused && Object.keys(D._err).length > 0;
     $('onoff').checked = !paused;
-    $('dot').className = 'dot ' + (paused ? 'pause' : D.running ? 'run' : err ? 'err' : '');
-    $('title').textContent = `Deney Botu (${D.cities.length} şehir${D.running ? ', çalışıyor' : ''})${paused ? ' · DURAKLATILDI' : ''}`;
-    $('start').disabled = D.running || passive;
-    $('stop').disabled = !D.running || passive;
+    $('dot').className = 'dot ' + (paused ? 'pause' : err ? 'err' : 'run');
+    $('title').textContent = `Deney Botu (${D.cities.length} şehir)${paused ? ' · KAPALI' : ''}`;
     $('status').textContent = passive ? 'Başka sekmede çalışıyor. Bu sekme sadece gösterir.' : D.status;
     $('status').classList.toggle('err', err);
 
@@ -119,7 +102,7 @@
     const html = cities()
       .map((c) => {
         const on = D.has(c.id);
-        const cs = D.running && on && D.cityStatus[c.id] ? IB.live.line(esc(D.cityStatus[c.id]), D.cityStatus[c.id], D.nextAt[c.id]) : '';
+        const cs = on && D.cityStatus[c.id] ? IB.live.line(esc(D.cityStatus[c.id]), D.cityStatus[c.id], D.nextAt[c.id]) : '';
         return `<div class="city"><label><input type="checkbox" data-city="${c.id}" ${on ? 'checked' : ''} ${passive ? 'disabled' : ''}>${esc(c.label)}</label>${cs}</div>`;
       })
       .join('');
@@ -155,7 +138,7 @@
   liveTick = IB.live.attach(root, () => ({
     paused: IB.isPaused('deney'),
     passive: D.passive,
-    running: D.running,
+    running: D.cities.length > 0,
     status: D.status,
     current: D.current ? cityLabel(D.current) : null,
     items: D.cities.map((c) => ({ label: c.cityName, status: D.cityStatus[c.cityId], nextAt: D.nextAt[c.cityId] })),

@@ -32,18 +32,18 @@ Notlar:
 - Depo herkese açıktır; içine şifre, oturum bilgisi ya da kişisel veri koyma. GitHub hesabında iki adımlı doğrulama açık olsun: buraya konan kod herkesin oyununda çalışır.
 
 ## Kullanım
-Panelde her barbar rotasyonu için ayrı bir kart var. **+ Rotasyon ekle** ile istediğin kadar rotasyon açabilir, her birini ayrı başlatıp durdurabilirsin. Rotasyonlar aynı anda çalışır.
+Panelde her barbar rotasyonu için ayrı bir kart var. **+ Rotasyon ekle** ile istediğin kadar rotasyon açabilirsin. Başlat/Durdur yoktur: kartta kaynak şehir ve barbar sömürgesi seçilince rotasyon (panelin **Açık** tiki açıksa) kendiliğinden çalışır. Ayar değişince yeniden doğrulanıp yeni ayarla devam eder. Rotasyonlar aynı anda çalışır.
 
 - Her rotasyonun kendi barbar sömürgesi ve adası olmalı. Aynı sömürge ya da aynı ada iki rotasyonda kullanılamaz.
 - İki rotasyon aynı kaynak şehri kullanabilir; o zaman askerleri ve kışlayı paylaşırlar.
-- Sorun tek bir rotasyona aitse (saldırı başarısız, sömürge kayboldu, max seviye bitti vb.) sadece o durur.
-- Düşman hareketi, oturum düşmesi ya da korunan şehrin kaybolması **tüm** rotasyonları durdurur.
+- Bot kendiliğinden durmaz. Sorun tek bir rotasyona aitse (saldırı başarısız, sömürge kayboldu vb.) o rotasyonun kartında hata görünür, günlüğe ve bildirime bir kez yazılır, birkaç dakika sonra tekrar denenir; diğerleri etkilenmez.
+- Düşman hareketi varsa geçene kadar 3 dk'da bir bakılır, bu arada hiçbir şey gönderilmez. Bağlantı/oturum sorununda bütün rotasyonlar bekleyip tekrar dener.
 
 Her kartta şu ayarlar var:
 - **Kaynak şehir:** askerlerin çıkacağı ana şehir.
 - **Barbar sömürgesi:** barbar köyü vurulacak adadaki geçici sömürge.
-- **Max barbar seviyesi:** bu seviye dahil vurulur, sonra bot uyarı verip durur.
-- Max seviye başlatırken doğrulanır. Araştırılmamış birim engel değil (oyunda satın alınabiliyor): başlatınca günlüğe bilgi düşer, kışla basamıyorsa elle alırsın; şehirde yeterince olunca saldırı gider. Sonradan yükseltmek için rotasyonu durdurup yeniden başlat.
+- **Max barbar seviyesi:** bu seviye dahil vurulur, sonra rotasyon uyarı verip bekler (ara ara bakar).
+- Ayarlar seçilince doğrulanır. Araştırılmamış birim engel değil (oyunda satın alınabiliyor): günlüğe bilgi düşer, kışla basamıyorsa elle alırsın; şehirde yeterince olunca saldırı gider. Max seviye kartta istenen an yükseltilebilir.
 
 ## Seviye tablosu
 Paneldeki **Seviye tablosu** düğmesi tabloyu açar. Her seviyede tam olarak tablodaki askerler gider; yükseltme durumu ya da koçbaşı→mancınık gibi otomatik bir hesap yoktur.
@@ -67,10 +67,10 @@ Paneldeki **Seviye tablosu** düğmesi tabloyu açar. Her seviyede tam olarak ta
 - Kışla kuyruğu oyundan okunduğu için aynı asker iki kez basılmaz. Kuyruk doluysa (en fazla 3 emir) ya da kaynak/vatandaş yetmiyorsa, yetecek kadarı basılır, kalanı sonra.
 - Gönderim anında yine de eksik varsa durmaz; eğitimdeki askerleri bekler.
 - **Sömürgedeki mızrakçılar:** "Sömürgedeki mızrakçıları kaynak şehre yolla" açıksa (varsayılan açık), rotasyon çalışırken 30-50 dk'da bir barbar sömürgesine bakılır. Orada ne kadar mızrakçı varsa hepsi o rotasyonun kaynak şehrine konuşlandırılır. Bu özellik başka hiçbir şey yapmaz: mızrakçı basmaz, bina kurmaz, başka asker yollamaz. Gemi yetmezse ya da oyun reddederse rotasyon durmaz; sebep günlüğe bir kez yazılır, sonra tekrar denenir.
-- Max seviye vurulup askerler dönünce uyarı verip durur. Sömürgeyi silme ve yeniden kurma elle yapılır; yeni sömürgeyle botu tekrar başlat.
+- Max seviye vurulup askerler dönünce uyarı verip bekler. Sömürgeyi silme ve yeniden kurma elle yapılır; yeni sömürgeyi kartta seçince rotasyon onunla devam eder.
 
 ## İnşaat Sırası (ayrı bot)
-Barbar panelinin üstündeki **İnşaat Sırası** paneli, barbar botundan tamamen ayrı başlatılıp durdurulur.
+Barbar panelinin üstündeki **İnşaat Sırası** paneli barbar botundan tamamen ayrıdır; **Açık** tiki açıkken sıradaki işleri yapar.
 
 - Şehir seç → bina seç → hedef seviye yaz → **+ Sıraya ekle**. ↑ ↓ ile sırayı değiştir, ✕ ile sil.
 - Her şehrin kendi sırası vardır; şehirler birbirini beklemez.
@@ -78,35 +78,30 @@ Barbar panelinin üstündeki **İnşaat Sırası** paneli, barbar botundan tamam
 - Şehirde inşaat varsa bitmesi beklenir. Malzeme yoksa beklenir (15-30 dk'da bir bakılır); sıradaki işe **atlanmaz**.
 - Her yükseltme emrinden sonra şehir tekrar okunup inşaatın gerçekten başladığı doğrulanır.
 - Sadece var olan binalar yükseltilir; boş arsaya yeni bina kurmaz.
-- Oturum düşerse/captcha çıkarsa durur. Sayfa yenilenirse kaldığı yerden devam eder.
+- Hata olursa (oturum düştü, captcha vb.) durmaz; şehrin satırında görünür ve birkaç dakika sonra tekrar dener. Sayfa yenilenirse kaldığı yerden devam eder.
 
 ## Araştırma Sırası (ayrı bot)
-İnşaat panelinin üstündeki **Araştırma Sırası** paneli mucit atölyesinde birim/gemi araştırması yapar; diğer iki bottan tamamen ayrı başlatılıp durdurulur.
+İnşaat panelinin üstündeki **Araştırma Sırası** paneli mucit atölyesinde birim/gemi araştırması yapar; diğer botlardan tamamen ayrıdır, **Açık** tiki açıkken çalışır.
 
 - Şehir seç → birim seç → araştırma seç (Zarar ya da Zırh) → hedef seviye yaz → **+ Sıraya ekle**. Listeler oyundan okunur: sadece o şehirde mucit atölyesi varsa birimler gelir; her birimin şu anki seviyesi, sonraki seviyenin adı ve oyunun engel mesajı (örn. "Bina kademesi yeterli değil!") görünür. Araştırması olmayan birimler (kargo gemisi) listelenmez.
 - Her şehrin kendi sırası vardır. Sadece sıranın **ilk** işi yapılır: araştırma hedef seviyeye gelene kadar birer seviye yapılır, sonra iş silinip sıradakine geçilir. En yüksek seviyeye ulaşılmışsa iş silinir.
 - Atölyede araştırma varsa bitmesi beklenir. Altın ya da kristal yetmiyorsa veya oyun engel gösteriyorsa beklenir (15-30 dk'da bir bakılır); sıradaki işe **atlanmaz**.
 - Her emirden sonra atölye tekrar okunup araştırmanın gerçekten başladığı doğrulanır.
-- Oturum düşerse/captcha çıkarsa durur. Sayfa yenilenirse kaldığı yerden devam eder.
+- Hata olursa (oturum düştü, captcha vb.) durmaz; şehrin satırında görünür ve birkaç dakika sonra tekrar dener. Sayfa yenilenirse kaldığı yerden devam eder.
 
 ## Deney Botu (ayrı bot)
-Araştırma panelinin üstündeki **Deney Botu** paneli akademide kristalle deney yapar; diğer botlardan tamamen ayrı başlatılıp durdurulur.
+Araştırma panelinin üstündeki **Deney Botu** paneli akademide kristalle deney yapar; diğer botlardan tamamen ayrıdır, **Açık** tiki açıkken çalışır.
 
-- Tek ayar şehir seçimidir: listede deney yapılacak şehirleri tikle, **Başlat**'a bas. Seçim çalışırken de değiştirilebilir.
+- Tek ayar şehir seçimidir: listede deney yapılacak şehirleri tikle. Seçim istenen an değiştirilebilir.
 - Bot açık olduğu sürece seçili her şehirde imkan oldukça deney yapılır. Akademinin bekleme süresi (her deneyden sonra yaklaşık 4 saat) sürüyorsa ya da kristal yetmiyorsa beklenir (20-30 dk'da bir bakılır; bekleme süresinin bitişi biliniyorsa tam o saatte), sonra tekrar dener. Şehirler birbirini beklemez.
 - Deney kristali o şehrin deposundan harcanır; o şehirde optik varsa maliyet düşer. Bu yüzden optiği yüksek şehirleri seçmek daha ucuzdur.
 - Ambrosialı deneye hiç dokunulmaz: ekranda ambrosia/premium geçen hiçbir düğme seçilmez. Bir deneyden sonra ambrosia azalmış görünürse bot hemen durur ve uyarır.
 - Deney, oyunun akademi ekranındaki kendi deney düğmesi okunup gönderilerek yapılır; her deneyden sonra akademi tekrar okunup kristalin harcandığı doğrulanır.
 - Deney yapmak için **Bilim → Deneyler** araştırması gerekir; yapılmamışsa bot "deney bölümü bulunamadı" yazıp bekler.
-- Oturum düşerse/captcha çıkarsa durur. Sayfa yenilenirse kaldığı yerden devam eder.
+- Hata olursa (oturum düştü, captcha vb.) durmaz; şehrin satırında görünür ve birkaç dakika sonra tekrar dener. Sayfa yenilenirse kaldığı yerden devam eder.
 
 ## Botları ayrı ayrı açıp kapama
-Her panelin başlığında kendi **Açık** tiki var (barbar, inşaat, araştırma, deney). Birinin tikini kaldırınca sadece o bot anında duraklar; diğerleri çalışmaya devam eder. Duraklatılan botun hiçbir isteği sunucuya gitmez, ayarları ve sırası silinmez; tik tekrar açılınca kaldığı yerden, oyundan taze okuyarak devam eder. Tikler tüm sekmelerde ortaktır ve sayfa yenilense de korunur. (Başlat/Durdur ise botu tamamen başlatır ya da bitirir.)
+Her panelin başlığında kendi **Açık** tiki var (barbar, inşaat, araştırma, deney). Bu tik botun tek aç/kapa düğmesidir (Başlat/Durdur yok). Birinin tikini kaldırınca sadece o bot anında durur; diğerleri çalışmaya devam eder. Kapalı botun hiçbir isteği sunucuya gitmez, ayarları ve sırası silinmez; tik tekrar açılınca kaldığı yerden, oyundan taze okuyarak devam eder. Tikler tüm sekmelerde ortaktır ve sayfa yenilense de korunur. Eski sürümde durdurulmuş ve yapacak işi olan bot, güncellemeyle kapalı devralınır (kendiliğinden başlamaz).
 
-## Botun durduğu durumlar
-- Max seviyeye ulaşıldığında.
-- Düşman oyuncu hareketi (saldırı, blokaj vb.). Barbarların bize saldırısı botu durdurmaz.
-- Oturum düşerse ya da captcha çıkarsa.
-
-Saldırı formu açılmazsa (ör. liman bloklu) bot durmaz; sebebi loga yazar ve birkaç dakika sonra tekrar dener.
-- Saldırı başarısız olursa.
+## Hatalar
+Botlar kendiliğinden durmaz. Hata olunca (bağlantı, oturum düşmesi, captcha, oyunun reddetmesi, başarısız saldırı…) sebep durum satırında kırmızı görünür, günlüğe ve bildirime bir kez yazılır, sonra tekrar denenir: bağlantı hatasında 30 sn'den başlayıp en fazla 5 dk'ya kadar seyrekleşerek, diğer hatalarda 5 dk sonra. Düşman oyuncu hareketinde (saldırı, blokaj vb.) barbar botu hiçbir şey göndermeden 3 dk'da bir bakar; barbarların bize saldırısı engel değildir.

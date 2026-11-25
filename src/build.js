@@ -2,6 +2,7 @@
 // sadece api.js/game.js'teki istek katmanını paylaşır (aynı istek kuyruğu, token yarışı olmaz).
 // Mantık: her şehrin kendi sırası var. Sıradaki bina hedef seviyeye gelene kadar birer seviye yükseltilir.
 // Şehirde inşaat varsa bitmesi beklenir; malzeme yoksa beklenir. Sıradaki iş bitmeden sonrakine geçilmez.
+// Başlat/Durdur yok: paneldeki Açık tiki açık olduğu sürece bot çalışır; hata olsa da durmaz, tekrar dener.
 (() => {
   const IB = window.IkaBot;
   const G = IB.makeGame('insaat');
@@ -40,11 +41,11 @@
 
   const Q = (IB.buildQueue = {
     items: [], // { id, cityId, cityName, position, building, name, targetLevel }
-    running: false,
     passive: false,
-    status: 'Durdu',
+    status: 'Başlıyor…',
     cityStatus: {}, // cityId -> metin
     nextAt: {}, // cityId -> ms
+    _err: {}, // cityId -> son hata (aynı hata günlüğe bir kez yazılır)
     nextId: 1,
     _looping: false,
     _wake: null,
@@ -58,16 +59,21 @@
       try {
         d = JSON.parse(localStorage.getItem(KEY));
       } catch (e) {}
+      if (d && 'running' in d) {
+        IB.migrateRunning('insaat', d.running, Array.isArray(d.items) && d.items.length > 0);
+        delete d.running;
+        try {
+          localStorage.setItem(KEY, JSON.stringify(d));
+        } catch (e) {}
+      }
       this.items = (d && Array.isArray(d.items)) ? d.items : [];
       this.nextId = (d && d.nextId) || 1;
-      this.running = !!(d && d.running);
-      if (!this.passive) this.status = this.running ? 'Çalışıyor' : 'Durdu';
       emit();
     },
     save() {
       if (this.passive) return;
       try {
-        localStorage.setItem(KEY, JSON.stringify({ items: this.items, nextId: this.nextId, running: this.running }));
+        localStorage.setItem(KEY, JSON.stringify({ items: this.items, nextId: this.nextId }));
       } catch (e) {}
       emit();
     },
@@ -105,25 +111,6 @@
       this.wake();
     },
 
-    start() {
-      if (this.passive) return;
-      this.running = true;
-      this.status = 'Çalışıyor';
-      this.nextAt = {};
-      this.save();
-      log('İnşaat sırası başlatıldı.');
-      this.loop();
-    },
-    stop(reason, level = 'info') {
-      this.running = false;
-      this.status = reason ? 'Durdu: ' + reason : 'Durdu';
-      this.save();
-      lock.release();
-      log(reason ? 'İnşaat sırası durdu: ' + reason : 'İnşaat sırası durduruldu.', level);
-      if (reason && level === 'error' && IB.notify) IB.notify('İnşaat sırası durdu', reason);
-      this.wake();
-    },
-
     wake() {
       if (this._wake) this._wake();
     },
@@ -142,6 +129,22 @@
     setCityStatus(cityId, text) {
       this.cityStatus[cityId] = text;
       emit();
+    },
+
+    // Hata: bot durmaz. Şehrin durum satırına yazılır, aynı hata günlüğe ve bildirime bir kez düşer, sonra tekrar denenir.
+    fail(cityId, e, waitSec) {
+      const msg = (e && e.message) || String(e);
+      if (this._err[cityId] !== msg) {
+        this._err[cityId] = msg;
+        log(`Hata: ${msg} — ${Math.ceil(waitSec / 60)} dk sonra tekrar denenecek (bot durmuyor).`, 'warn');
+        if (IB.notify) IB.notify('İnşaat sırası: sorun var, tekrar deneniyor', msg);
+      }
+      this.setCityStatus(cityId, `Hata: ${msg} — tekrar denenecek.`);
+    },
+    recovered(cityId) {
+      if (!this._err[cityId]) return;
+      delete this._err[cityId];
+      log('Sorun giderildi, devam ediliyor.');
     },
 
     // Bir şehrin sırasındaki ilk işi ilerletir. Kaç saniye sonra tekrar bakılacağını döndürür.
@@ -203,88 +206,95 @@
       return IB.rand(900, 1800);
     },
 
+    // Döngü hiç bitmez: tik kapalıyken bekler, açıkken sırayı işler. Hiçbir hata botu durdurmaz.
     async loop() {
       if (this._looping) return;
       this._looping = true;
       let httpFailures = 0;
       const heartbeat = setInterval(() => {
-        if (this.running && !this.passive) lock.refresh();
+        if (!this.passive) lock.refresh();
       }, 30000);
       try {
-        while (this.running) {
-          if (!(await lock.acquire())) {
-            // Başka sekme çalışıyor: bu sekme sadece izler.
-            if (!this.passive) {
-              this.passive = true;
-              this.status = 'Başka sekmede çalışıyor';
-              emit();
+        for (;;) {
+          try {
+            if (!(await lock.acquire())) {
+              // Başka sekme çalışıyor: bu sekme sadece izler.
+              if (!this.passive) {
+                this.passive = true;
+                this.status = 'Başka sekmede çalışıyor';
+                emit();
+              }
+              await this.sleep(60000);
+              this.load();
+              continue;
             }
-            await this.sleep(60000);
-            this.load();
-            continue;
-          }
-          if (this.passive) {
-            this.passive = false;
-            this.load();
-            log('İnşaat sırası bu sekmede devam ediyor (önceki sekme kapandı).');
-            if (!this.running) break;
-          }
-          // Duraklatıldı: devam ettirilene kadar bekle; sıra ve kayıtlar olduğu gibi kalır.
-          if (IB.isPaused('insaat')) {
-            this.status = 'Duraklatıldı';
-            emit();
-            await this.sleep(60000);
-            continue;
-          }
-          this.status = 'Çalışıyor';
-
-          for (const cityId of this.cityIds()) {
-            if (!this.running) break;
-            if ((this.nextAt[cityId] || 0) > Date.now()) continue;
-            let waitSec;
-            try {
-              this.current = cityId; // panelde "şu an" satırı için
+            if (this.passive) {
+              this.passive = false;
+              this.load();
+              log('İnşaat sırası bu sekmede devam ediyor (önceki sekme kapandı).');
+            }
+            // Kapalı (Açık tiki kaldırılmış): açılana kadar bekle; sıra ve kayıtlar olduğu gibi kalır.
+            if (IB.isPaused('insaat')) {
+              this.status = 'Kapalı';
               emit();
-              waitSec = await this.processCity(cityId);
-              httpFailures = 0;
-            } catch (e) {
-              // Duraklatma işi yarıda kesti: bu şehir devam ettirilince oyundan taze okunarak yeniden işlenir.
-              if (e instanceof GameError && e.kind === 'paused') break;
-              if (e instanceof GameError && e.kind === 'http' && ++httpFailures <= 15) {
-                waitSec = Math.min(300, 30 * httpFailures);
-                log(`Bağlantı hatası (${httpFailures}/15), ${waitSec} sn sonra tekrar: ${e.message}`, 'warn');
-              } else if (e instanceof GameError && (e.kind === 'session' || e.kind === 'http')) {
-                this.stop(e.message, 'error');
-                break;
-              } else {
+              await this.sleep(60000);
+              continue;
+            }
+            this.status = this.items.length ? 'Çalışıyor' : 'Sıra boş; iş eklenince başlar.';
+
+            for (const cityId of this.cityIds()) {
+              if ((this.nextAt[cityId] || 0) > Date.now()) continue;
+              let waitSec;
+              try {
+                this.current = cityId; // panelde "şu an" satırı için
+                emit();
+                waitSec = await this.processCity(cityId);
+                httpFailures = 0;
+                this.recovered(cityId);
+              } catch (e) {
+                // Tik kapatılınca iş yarıda kesildi: bu şehir açılınca oyundan taze okunarak yeniden işlenir.
+                if (e instanceof GameError && e.kind === 'paused') break;
                 if (!(e instanceof GameError)) console.error(e);
-                waitSec = 300;
-                log(`Hata: ${e.message || e}. 5 dk sonra tekrar denenecek.`, 'warn');
+                if (e instanceof GameError && e.kind === 'http') httpFailures++;
+                waitSec = IB.retryWait(e, httpFailures);
+                this.fail(cityId, e, waitSec);
+                // Bağlantı/oturum sorunu bütün şehirleri etkiler: hepsi aynı süre bekleyip tekrar dener.
+                if (e instanceof GameError && (e.kind === 'http' || e.kind === 'session')) {
+                  for (const id of this.cityIds()) this.nextAt[id] = Date.now() + waitSec * 1000;
+                  break;
+                }
+              }
+              if (waitSec === null) continue;
+              waitSec = Math.min(21600, Math.max(2, Number(waitSec) || 60));
+              this.nextAt[cityId] = Date.now() + waitSec * 1000;
+            }
+            // Sırası boşalan şehirlerin durum yazısını temizle.
+            for (const id of Object.keys(this.cityStatus)) {
+              if (!this.itemsOf(Number(id)).length) {
+                delete this.cityStatus[id];
+                delete this._err[id];
               }
             }
-            if (waitSec === null) continue;
-            waitSec = Math.min(21600, Math.max(2, Number(waitSec) || 60));
-            this.nextAt[cityId] = Date.now() + waitSec * 1000;
-          }
-          if (!this.running) break;
-          // Sırası boşalan şehirlerin durum yazısını temizle.
-          for (const id of Object.keys(this.cityStatus)) {
-            if (!this.itemsOf(Number(id)).length) delete this.cityStatus[id];
-          }
-          emit();
+            this.current = null;
+            emit();
 
-          this.current = null;
-
-          const nexts = this.cityIds().map((id) => this.nextAt[id] || 0);
-          const waitMs = nexts.length ? Math.min(...nexts) - Date.now() : 60000;
-          await this.sleep(Math.min(60000, Math.max(1000, waitMs)));
+            const nexts = this.cityIds().map((id) => this.nextAt[id] || 0);
+            const waitMs = nexts.length ? Math.min(...nexts) - Date.now() : 60000;
+            await this.sleep(Math.min(60000, Math.max(1000, waitMs)));
+          } catch (e) {
+            // Beklenmeyen hata döngüyü bitirmesin: günlüğe yaz, biraz bekle, devam et.
+            console.error(e);
+            this.current = null;
+            log(`Beklenmeyen hata: ${(e && e.message) || e}. 1 dk sonra devam edilecek.`, 'warn');
+            await IB.sleep(60000);
+          }
         }
       } finally {
         clearInterval(heartbeat);
         this._looping = false;
         this.current = null;
         this.passive = false;
-        if (!this.running) lock.release();
+        lock.release();
         emit();
       }
     },
@@ -296,8 +306,9 @@
   window.addEventListener('storage', (e) => {
     if (e.key === KEY && (Q.passive || !Q._looping)) Q.load();
   });
-  // Sayfa yenilendiyse ve sıra çalışıyorduysa devam et.
-  setTimeout(() => {
-    if (Q.running && !Q._looping) Q.loop();
-  }, 6000);
+  // Sayfa açılınca döngü başlar; bir sebeple biterse bekçi yeniden başlatır.
+  if (IB.inGame()) {
+    setTimeout(() => Q.loop(), 6000);
+    setInterval(() => { if (!Q._looping) Q.loop(); }, 120000);
+  }
 })();

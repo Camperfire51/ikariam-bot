@@ -84,6 +84,27 @@
   }
   IB.GameError = GameError;
 
+  // Botlar kendiliğinden durmaz: Açık tiki açık olduğu sürece hata da olsa tekrar tekrar dener.
+  // Hatadan sonra kaç saniye beklenecek: bağlantı hatasında giderek seyrekleşir (30 sn, 60 sn … en fazla 5 dk),
+  // diğer bütün hatalarda (oturum düştü, captcha, oyun reddetti, beklenmeyen hata) 5 dk.
+  IB.retryWait = (e, httpFailures) =>
+    e instanceof GameError && e.kind === 'http' ? Math.min(300, 30 * Math.max(1, httpFailures)) : 300;
+
+  // Sadece oyun sayfasında (giriş/çıkış sayfalarında değil) çalışılır.
+  IB.inGame = () => {
+    try {
+      return !!(window.ikariam && ikariam.model);
+    } catch (e) {
+      return false;
+    }
+  };
+
+  // Eski sürümde botlar ayrıca Başlat/Durdur ile açılıp kapanıyordu; artık sadece Açık tiki var. Eski kayıtta
+  // durdurulmuş ve yapacak işi olan bot, güncellemeyle kendiliğinden çalışmaya başlamasın diye kapalı devralınır.
+  IB.migrateRunning = (bot, wasRunning, hasWork) => {
+    if (!wasRunning && hasWork) IB.setPaused(bot, true);
+  };
+
   IB.parseGameInt = (text) => {
     if (text === undefined || text === null) return 0;
     const s = String(text).replace(/[.,\s  ]/g, '').replace(/^-$/, '0');

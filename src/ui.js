@@ -60,15 +60,14 @@
     ${IB.live.CSS}
   </style>
   <div class="panel collapsed" id="panel">
-    <div class="head" id="head"><span class="dot" id="dot"></span><b id="headTitle">Barbar Rotasyonu</b><label class="onoff" id="onoffLbl" title="Kapatınca sadece barbar botu duraklar; inşaat ve araştırma botları çalışmaya devam eder. Hiçbir kayıt silinmez, açınca kaldığı yerden devam eder."><input type="checkbox" id="onoff"> Açık</label><span id="toggle">▲</span></div>${IB.live.HTML}
+    <div class="head" id="head"><span class="dot" id="dot"></span><b id="headTitle">Barbar Rotasyonu</b><label class="onoff" id="onoffLbl" title="Açıkken kaynak şehri ve sömürgesi seçilmiş her rotasyon sürekli çalışır; sorun çıkarsa durmaz, tekrar tekrar dener. Kapatınca sadece barbar botu durur, diğer botlar çalışmaya devam eder. Hiçbir kayıt silinmez, açınca kaldığı yerden devam eder."><input type="checkbox" id="onoff"> Açık</label><span id="toggle">▲</span></div>${IB.live.HTML}
     <div class="body">
       <div class="row">
         <button id="add">+ Rotasyon ekle</button>
-        <button class="danger" id="stopAll">Tümünü durdur</button>
         <button id="notifyBtn">Bildirimlere izin ver</button>
         <button id="tableBtn">Seviye tablosu ▸</button>
       </div>
-      <div class="status" id="passiveNote" style="display:none">Bot başka bir sekmede çalışıyor. Bu sekme sadece durumu gösterir; başlatma, durdurma ve ayarları çalışan sekmeden yap.</div>
+      <div class="status" id="passiveNote" style="display:none">Bot başka bir sekmede çalışıyor. Bu sekme sadece durumu gösterir; ayarları çalışan sekmeden yap.</div>
       <div class="tbl" id="tbl" style="display:none">
         <div class="tbl-note">Her seviyede tam olarak buradaki askerler gider. Kayıp: o seviyede ölmesi beklenen hoplit (asker havuzu buna göre fazladan basar). Ganimet: erken gönderimde (köy henüz kurulmamışken kaynağı oyunda görünmez) askerlerin gemisine ek giden ganimet gemisi. Köy ayaktaysa gemi köyün kaynağından otomatik hesaplanır. Boşta o kadar gemi yoksa boştakilerin hepsiyle gidilir. Değişiklikler hemen kaydedilir, çalışan rotasyonlar bir sonraki turda yeni değerleri kullanır.</div>
         <div class="lv" id="follow">
@@ -124,10 +123,6 @@
           <label class="chk"><input type="checkbox" data-f="sendSpearmen"> Sömürgedeki mızrakçıları kaynak şehre yolla</label>
         </div>
         <div class="summary" data-k="summary"></div>
-        <div class="row">
-          <button class="primary" data-act="start">Başlat</button>
-          <button data-act="stop">Durdur</button>
-        </div>
         <div class="status" data-k="status"></div>
       </div>`;
   }
@@ -150,11 +145,12 @@
     return out;
   }
 
-  // Kartlar sadece rotasyon listesi ya da çalışma durumu değişince yeniden kurulur;
-  // durmuş karttaki düzenlemeler anında ayarlara yazıldığı için kaybolmaz.
+  // Kartlar sadece rotasyon listesi değişince yeniden kurulur; düzenlemeler anında ayarlara yazılır.
+  // Başlat/Durdur yok: kaynak şehir ve sömürge seçilince rotasyon (bot açıksa) kendiliğinden çalışır;
+  // ayar değişince yeniden doğrulanıp yeni ayarla devam eder.
   let cardsKey = '';
   function buildCards() {
-    const key = M.rotations.map((r) => r.id + ':' + r.st.running).join(',');
+    const key = M.rotations.map((r) => r.id).join(',');
     if (key === cardsKey) return;
     cardsKey = key;
     $('cards').innerHTML = M.rotations.map(cardHtml).join('');
@@ -162,50 +158,45 @@
       const r = M.get(el.dataset.id);
       fillCard(el, r);
       el.addEventListener('change', () => {
-        if (r.st.running || M.passive) return;
+        if (M.passive) return;
         const v = readCard(el);
+        const originId = v.originId ? Number(v.originId) : null;
+        const colonyId = v.colonyId ? Number(v.colonyId) : null;
+        // Şehir/sömürge değiştiyse eski adlar ve hedef ada yeniden doğrulanana kadar gösterilmez.
+        if (originId !== Number(r.cfg.originId) || colonyId !== Number(r.cfg.colonyId)) {
+          Object.assign(r.cfg, { originName: null, colonyName: null, targetIslandId: null, targetIslandName: null });
+        }
         Object.assign(r.cfg, {
-          originId: v.originId ? Number(v.originId) : null,
-          colonyId: v.colonyId ? Number(v.colonyId) : null,
+          originId,
+          colonyId,
           maxLevel: Number(v.maxLevel) || r.cfg.maxLevel,
           leadMin: Number(v.leadMin) || 0,
           autoTrain: v.autoTrain,
           sendSpearmen: v.sendSpearmen,
         });
+        r.st.nextAt = 0; // yeni ayar hemen doğrulansın
+        if (!r.configured) r.st.status = 'Bekliyor';
         M.save();
+        M.wake();
+        if (window.Notification && Notification.permission === 'default') Notification.requestPermission().then(render);
       });
-      el.querySelector('[data-act="start"]').addEventListener('click', () => onStart(el, r));
-      el.querySelector('[data-act="stop"]').addEventListener('click', () => r.stop());
       el.querySelector('[data-act="remove"]').addEventListener('click', () => {
-        if (r.st.running) return;
+        if (M.passive) return;
         if (window.confirm(`R${r.id} rotasyonu panelden silinsin mi? (Oyunda hiçbir şey silinmez.)`)) M.remove(r.id);
       });
     }
   }
 
-  async function onStart(el, r) {
-    const input = readCard(el);
-    if (window.Notification && Notification.permission === 'default') Notification.requestPermission().then(render);
-    try {
-      await r.start(input);
-    } catch (e) {
-      // Hata kartın durum satırında ve günlükte görünür.
-    }
-    render();
-  }
-
   function render() {
     buildCards();
-    const anyRunning = M.running;
-    const anyErr = M.rotations.some((r) => !r.st.running && r.st.stopReason);
     const paused = IB.isPaused('barbar');
+    const active = M.rotations.filter((r) => r.configured);
+    const anyErr = active.some((r) => r.st.error);
     $('onoff').checked = !paused;
-    $('dot').className = 'dot ' + (paused ? 'pause' : anyRunning ? 'run' : anyErr ? 'err' : '');
-    const runningCount = M.rotations.filter((r) => r.st.running).length;
-    $('headTitle').textContent = `Barbar Rotasyonu (${runningCount}/${M.rotations.length} çalışıyor)${paused ? ' · DURAKLATILDI' : ''}`;
+    $('dot').className = 'dot ' + (paused ? 'pause' : anyErr ? 'err' : active.length ? 'run' : '');
+    $('headTitle').textContent = `Barbar Rotasyonu (${active.length}/${M.rotations.length} etkin)${paused ? ' · KAPALI' : ''}`;
     const passive = M.passive;
     $('passiveNote').style.display = passive ? 'block' : 'none';
-    $('stopAll').disabled = !anyRunning || passive;
     $('add').disabled = passive;
     $('notifyBtn').style.display = window.Notification && Notification.permission === 'default' ? '' : 'none';
 
@@ -213,16 +204,14 @@
       const r = M.get(el.dataset.id);
       if (!r) continue;
       const { cfg, st } = r;
-      el.classList.toggle('running', st.running);
-      el.querySelector('[data-k="dot"]').className = 'dot ' + (st.running ? (paused ? 'pause' : 'run') : st.stopReason ? 'err' : '');
+      const on = r.configured;
+      el.classList.toggle('running', on && !paused);
+      el.querySelector('[data-k="dot"]').className = 'dot ' + (!on ? '' : paused ? 'pause' : st.error ? 'err' : 'run');
       el.querySelector('[data-k="title"]').textContent = r.label;
-      el.querySelector('[data-k="form"]').style.display = st.running ? 'none' : 'grid';
-      el.querySelector('[data-act="start"]').disabled = st.running || passive;
-      el.querySelector('[data-act="stop"]').disabled = !st.running || passive;
-      el.querySelector('[data-act="remove"]').disabled = st.running || passive;
+      el.querySelector('[data-act="remove"]').disabled = passive;
       for (const input of el.querySelectorAll('[data-f]')) input.disabled = passive;
       el.querySelector('[data-f="maxLevel"]').max = String(IB.maxTableLevel());
-      const pool = st.running && cfg.autoTrain && M.stockInfo[cfg.originId];
+      const pool = on && cfg.autoTrain && M.stockInfo[cfg.originId];
       const poolText = pool
         ? `\nAsker havuzu (${pool.ranges.join(', ')}): gereken ${IB.describeUnits(pool.need)}` +
           (Object.keys(pool.deficit).length ? ` · eksik ${IB.describeUnits(pool.deficit)}` : ' · hazır') +

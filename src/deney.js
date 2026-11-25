@@ -1,7 +1,8 @@
 // Akademi deney botu. Diğer botlardan tamamen ayrı çalışır; sadece api.js/game.js'teki istek katmanını paylaşır.
 // Mantık: seçili her şehrin akademisinde kristalle deney yapılabiliyorsa yapılır. Bekleme süresi (deneyden sonra
 // akademinin toparlanması) ya da kristal eksikse beklenir. Bot açık olduğu sürece bu sürekli tekrar eder.
-// Ambrosialı deneye hiç dokunulmaz; bir deneyden sonra ambrosia azalmışsa bot hemen durur.
+// Ambrosialı deneye hiç dokunulmaz; bir deneyden sonra ambrosia azalmışsa botun Açık tiki kapatılır (tek istisna).
+// Başlat/Durdur yok: paneldeki Açık tiki açık olduğu sürece bot çalışır; hata olsa da durmaz, tekrar dener.
 (() => {
   const IB = window.IkaBot;
   const G = IB.makeGame('deney');
@@ -89,11 +90,11 @@
 
   const D = (IB.deney = {
     cities: [], // { cityId, cityName }
-    running: false,
     passive: false,
-    status: 'Durdu',
+    status: 'Başlıyor…',
     cityStatus: {}, // cityId -> metin
     nextAt: {}, // cityId -> ms
+    _err: {}, // cityId -> son hata (aynı hata günlüğe bir kez yazılır)
     _debugLogged: {}, // cityId -> son yazılan ekran dökümü
     _looping: false,
     _wake: null,
@@ -107,15 +108,20 @@
       try {
         d = JSON.parse(localStorage.getItem(KEY));
       } catch (e) {}
+      if (d && 'running' in d) {
+        IB.migrateRunning('deney', d.running, Array.isArray(d.cities) && d.cities.length > 0);
+        delete d.running;
+        try {
+          localStorage.setItem(KEY, JSON.stringify(d));
+        } catch (e) {}
+      }
       this.cities = (d && Array.isArray(d.cities)) ? d.cities : [];
-      this.running = !!(d && d.running);
-      if (!this.passive) this.status = this.running ? 'Çalışıyor' : 'Durdu';
       emit();
     },
     save() {
       if (this.passive) return;
       try {
-        localStorage.setItem(KEY, JSON.stringify({ cities: this.cities, running: this.running }));
+        localStorage.setItem(KEY, JSON.stringify({ cities: this.cities }));
       } catch (e) {}
       emit();
     },
@@ -132,27 +138,9 @@
       } else {
         this.cities = this.cities.filter((c) => c.cityId !== cityId);
         delete this.cityStatus[cityId];
+        delete this._err[cityId];
       }
       this.save();
-      this.wake();
-    },
-
-    start() {
-      if (this.passive) return;
-      this.running = true;
-      this.status = 'Çalışıyor';
-      this.nextAt = {};
-      this.save();
-      log('Deney botu başlatıldı.');
-      this.loop();
-    },
-    stop(reason, level = 'info') {
-      this.running = false;
-      this.status = reason ? 'Durdu: ' + reason : 'Durdu';
-      this.save();
-      lock.release();
-      log(reason ? 'Deney botu durdu: ' + reason : 'Deney botu durduruldu.', level);
-      if (reason && level === 'error' && IB.notify) IB.notify('Deney botu durdu', reason);
       this.wake();
     },
 
@@ -178,6 +166,22 @@
     warnOnce(cityId, text) {
       if (this.cityStatus[cityId] !== text) log(text, 'warn');
       this.setCityStatus(cityId, text);
+    },
+
+    // Hata: bot durmaz. Şehrin durum satırına yazılır, aynı hata günlüğe ve bildirime bir kez düşer, sonra tekrar denenir.
+    fail(cityId, e, waitSec) {
+      const msg = (e && e.message) || String(e);
+      if (this._err[cityId] !== msg) {
+        this._err[cityId] = msg;
+        log(`Hata: ${msg} — ${Math.ceil(waitSec / 60)} dk sonra tekrar denenecek (bot durmuyor).`, 'warn');
+        if (IB.notify) IB.notify('Deney botu: sorun var, tekrar deneniyor', msg);
+      }
+      this.setCityStatus(cityId, `Hata: ${msg} — tekrar denenecek.`);
+    },
+    recovered(cityId) {
+      if (!this._err[cityId]) return;
+      delete this._err[cityId];
+      log('Sorun giderildi, devam ediliyor.');
     },
 
     // Bir şehirde deney yapılabiliyorsa yapar. Kaç saniye sonra tekrar bakılacağını döndürür (bot durduysa null).
@@ -240,12 +244,16 @@
       // Oyun hata vermeden reddedebilir: akademiyi tekrar okuyup deneyin yapıldığını doğrula.
       const after = await G.academy(cityId, ac.index);
       if (Number.isFinite(a.ambrosia) && Number.isFinite(after.ambrosia) && after.ambrosia < a.ambrosia) {
-        this.stop(
+        // Tek güvenlik istisnası: ambrosia (gerçek para) harcanmış olabilir. Tekrar denemek daha fazla harcatabilir;
+        // bu yüzden botun Açık tiki kapatılır (panelde görünür, kendiliğinden açılmaz).
+        const msg =
           `${label}: deneyden sonra ambrosia azaldı (${a.ambrosia} → ${after.ambrosia}). Bot ambrosiaya dokunmamalı; ` +
-            'elle harcadıysan botu tekrar başlat.',
-          'error'
-        );
-        return null;
+          'güvenlik için Deney botunun Açık tiki kapatıldı. Elle harcadıysan tiki tekrar aç.';
+        log(msg, 'error');
+        if (IB.notify) IB.notify('Deney botu kapatıldı', msg);
+        this.setCityStatus(cityId, msg);
+        IB.setPaused('deney', true);
+        return IB.rand(1200, 1800);
       }
       const spent = Math.floor(a.crystal - after.crystal);
       if (spent > 0 || res.successes.length || !after.action) {
@@ -257,84 +265,89 @@
       return IB.rand(1200, 1800);
     },
 
+    // Döngü hiç bitmez: tik kapalıyken bekler, açıkken seçili şehirleri işler. Hiçbir hata botu durdurmaz.
     async loop() {
       if (this._looping) return;
       this._looping = true;
       let httpFailures = 0;
       const heartbeat = setInterval(() => {
-        if (this.running && !this.passive) lock.refresh();
+        if (!this.passive) lock.refresh();
       }, 30000);
       try {
-        while (this.running) {
-          if (!(await lock.acquire())) {
-            // Başka sekme çalışıyor: bu sekme sadece izler.
-            if (!this.passive) {
-              this.passive = true;
-              this.status = 'Başka sekmede çalışıyor';
-              emit();
-            }
-            await this.sleep(60000);
-            this.load();
-            continue;
-          }
-          if (this.passive) {
-            this.passive = false;
-            this.load();
-            log('Deney botu bu sekmede devam ediyor (önceki sekme kapandı).');
-            if (!this.running) break;
-          }
-          // Duraklatıldı: devam ettirilene kadar bekle; şehir listesi ve kayıtlar olduğu gibi kalır.
-          if (IB.isPaused('deney')) {
-            this.status = 'Duraklatıldı';
-            emit();
-            await this.sleep(60000);
-            continue;
-          }
-          this.status = 'Çalışıyor';
-
-          for (const { cityId } of [...this.cities]) {
-            if (!this.running) break;
-            if ((this.nextAt[cityId] || 0) > Date.now()) continue;
-            let waitSec;
-            try {
-              this.current = cityId; // panelde "şu an" satırı için
-              emit();
-              waitSec = await this.processCity(cityId);
-              httpFailures = 0;
-            } catch (e) {
-              // Duraklatma işi yarıda kesti: bu şehir devam ettirilince oyundan taze okunarak yeniden işlenir.
-              if (e instanceof GameError && e.kind === 'paused') break;
-              if (e instanceof GameError && e.kind === 'http' && ++httpFailures <= 15) {
-                waitSec = Math.min(300, 30 * httpFailures);
-                log(`Bağlantı hatası (${httpFailures}/15), ${waitSec} sn sonra tekrar: ${e.message}`, 'warn');
-              } else if (e instanceof GameError && (e.kind === 'session' || e.kind === 'http')) {
-                this.stop(e.message, 'error');
-                break;
-              } else {
-                if (!(e instanceof GameError)) console.error(e);
-                waitSec = 300;
-                log(`Hata: ${e.message || e}. 5 dk sonra tekrar denenecek.`, 'warn');
+        for (;;) {
+          try {
+            if (!(await lock.acquire())) {
+              // Başka sekme çalışıyor: bu sekme sadece izler.
+              if (!this.passive) {
+                this.passive = true;
+                this.status = 'Başka sekmede çalışıyor';
+                emit();
               }
+              await this.sleep(60000);
+              this.load();
+              continue;
             }
-            if (waitSec === null) continue;
-            waitSec = Math.min(21600, Math.max(2, Number(waitSec) || 60));
-            this.nextAt[cityId] = Date.now() + waitSec * 1000;
+            if (this.passive) {
+              this.passive = false;
+              this.load();
+              log('Deney botu bu sekmede devam ediyor (önceki sekme kapandı).');
+            }
+            // Kapalı (Açık tiki kaldırılmış): açılana kadar bekle; şehir listesi ve kayıtlar olduğu gibi kalır.
+            if (IB.isPaused('deney')) {
+              this.status = 'Kapalı';
+              emit();
+              await this.sleep(60000);
+              continue;
+            }
+            this.status = this.cities.length ? 'Çalışıyor' : 'Şehir seçilmedi; listeden şehir tikleyince başlar.';
+
+            for (const { cityId } of [...this.cities]) {
+              if (IB.isPaused('deney')) break;
+              if ((this.nextAt[cityId] || 0) > Date.now()) continue;
+              let waitSec;
+              try {
+                this.current = cityId; // panelde "şu an" satırı için
+                emit();
+                waitSec = await this.processCity(cityId);
+                httpFailures = 0;
+                this.recovered(cityId);
+              } catch (e) {
+                // Tik kapatılınca iş yarıda kesildi: bu şehir açılınca oyundan taze okunarak yeniden işlenir.
+                if (e instanceof GameError && e.kind === 'paused') break;
+                if (!(e instanceof GameError)) console.error(e);
+                if (e instanceof GameError && e.kind === 'http') httpFailures++;
+                waitSec = IB.retryWait(e, httpFailures);
+                this.fail(cityId, e, waitSec);
+                // Bağlantı/oturum sorunu bütün şehirleri etkiler: hepsi aynı süre bekleyip tekrar dener.
+                if (e instanceof GameError && (e.kind === 'http' || e.kind === 'session')) {
+                  for (const c of this.cities) this.nextAt[c.cityId] = Date.now() + waitSec * 1000;
+                  break;
+                }
+              }
+              if (waitSec === null) continue;
+              waitSec = Math.min(21600, Math.max(2, Number(waitSec) || 60));
+              this.nextAt[cityId] = Date.now() + waitSec * 1000;
+            }
+            this.current = null;
+            emit();
+
+            const nexts = this.cities.map((c) => this.nextAt[c.cityId] || 0);
+            const waitMs = nexts.length ? Math.min(...nexts) - Date.now() : 60000;
+            await this.sleep(Math.min(60000, Math.max(1000, waitMs)));
+          } catch (e) {
+            // Beklenmeyen hata döngüyü bitirmesin: günlüğe yaz, biraz bekle, devam et.
+            console.error(e);
+            this.current = null;
+            log(`Beklenmeyen hata: ${(e && e.message) || e}. 1 dk sonra devam edilecek.`, 'warn');
+            await IB.sleep(60000);
           }
-          if (!this.running) break;
-          emit();
-
-          this.current = null;
-
-          const nexts = this.cities.map((c) => this.nextAt[c.cityId] || 0);
-          const waitMs = nexts.length ? Math.min(...nexts) - Date.now() : 60000;
-          await this.sleep(Math.min(60000, Math.max(1000, waitMs)));
         }
       } finally {
         clearInterval(heartbeat);
         this._looping = false;
         this.current = null;
         this.passive = false;
-        if (!this.running) lock.release();
+        lock.release();
         emit();
       }
     },
@@ -346,8 +359,9 @@
   window.addEventListener('storage', (e) => {
     if (e.key === KEY && (D.passive || !D._looping)) D.load();
   });
-  // Sayfa yenilendiyse ve bot çalışıyorduysa devam et.
-  setTimeout(() => {
-    if (D.running && !D._looping) D.loop();
-  }, 7000);
+  // Sayfa açılınca döngü başlar; bir sebeple biterse bekçi yeniden başlatır.
+  if (IB.inGame()) {
+    setTimeout(() => D.loop(), 7000);
+    setInterval(() => { if (!D._looping) D.loop(); }, 120000);
+  }
 })();

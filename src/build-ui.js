@@ -53,12 +53,8 @@
     ${IB.live.CSS}
   </style>
   <div class="panel collapsed" id="panel">
-    <div class="head" id="head"><span class="dot" id="dot"></span><b id="title">İnşaat Sırası</b><label class="onoff" id="onoffLbl" title="Kapatınca sadece inşaat botu duraklar; barbar ve araştırma botları çalışmaya devam eder. Hiçbir kayıt silinmez, açınca kaldığı yerden devam eder."><input type="checkbox" id="onoff"> Açık</label><span id="toggle">▲</span></div>${IB.live.HTML}
+    <div class="head" id="head"><span class="dot" id="dot"></span><b id="title">İnşaat Sırası</b><label class="onoff" id="onoffLbl" title="Açıkken bot sürekli çalışır; sorun çıkarsa durmaz, tekrar tekrar dener. Kapatınca sadece inşaat botu durur, diğer botlar çalışmaya devam eder. Hiçbir kayıt silinmez, açınca kaldığı yerden devam eder."><input type="checkbox" id="onoff"> Açık</label><span id="toggle">▲</span></div>${IB.live.HTML}
     <div class="body">
-      <div class="row">
-        <button class="primary" id="start">Başlat</button>
-        <button id="stop">Durdur</button>
-      </div>
       <div class="status" id="status"></div>
       <div class="add">
         <label>Şehir <select id="city"></select></label>
@@ -139,19 +135,12 @@
     render();
   });
 
-  $('start').addEventListener('click', () => {
-    if (!window.confirm('İnşaat sırası başlasın mı? Bot sıradaki binalar için gerçek yükseltme emri verecek.')) return;
-    Q.start();
-    render();
-  });
-  $('stop').addEventListener('click', () => { Q.stop(); render(); });
-
-  // Sadece inşaat botunun aç/kapa tiki. Tıklamak paneli açıp kapamasın.
+  // İnşaat botunun tek aç/kapa düğmesi. Tıklamak paneli açıp kapamasın.
   $('onoffLbl').addEventListener('click', (e) => e.stopPropagation());
   $('onoff').addEventListener('change', () => {
     const pause = !$('onoff').checked;
     IB.setPaused('insaat', pause);
-    Q.log(pause ? 'İnşaat botu duraklatıldı; sıra ve kayıtlar korunuyor. Diğer botlar etkilenmez.' : 'İnşaat botu devam ettirildi; kaldığı yerden sürüyor.');
+    Q.log(pause ? 'İnşaat botu kapatıldı; sıra ve kayıtlar korunuyor. Diğer botlar etkilenmez.' : 'İnşaat botu açıldı; kaldığı yerden sürüyor.');
     render();
   });
   IB.onPauseChange((bot) => { if (bot === 'insaat') render(); });
@@ -168,13 +157,11 @@
 
   function render() {
     const passive = Q.passive;
-    const err = !Q.running && /^Durdu: /.test(Q.status);
     const paused = IB.isPaused('insaat');
+    const err = !paused && Object.keys(Q._err).length > 0;
     $('onoff').checked = !paused;
-    $('dot').className = 'dot ' + (paused ? 'pause' : Q.running ? 'run' : err ? 'err' : '');
-    $('title').textContent = `İnşaat Sırası (${Q.items.length} iş${Q.running ? ', çalışıyor' : ''})${paused ? ' · DURAKLATILDI' : ''}`;
-    $('start').disabled = Q.running || passive;
-    $('stop').disabled = !Q.running || passive;
+    $('dot').className = 'dot ' + (paused ? 'pause' : err ? 'err' : 'run');
+    $('title').textContent = `İnşaat Sırası (${Q.items.length} iş)${paused ? ' · KAPALI' : ''}`;
     $('add').disabled = passive;
     $('status').textContent = passive ? 'Başka sekmede çalışıyor. Bu sekme sadece gösterir.' : Q.status;
     $('status').classList.toggle('err', err);
@@ -192,7 +179,7 @@
             </div>`
           )
           .join('');
-        const cs = Q.running && Q.cityStatus[cityId] ? IB.live.line(esc(Q.cityStatus[cityId]), Q.cityStatus[cityId], Q.nextAt[cityId]) : '';
+        const cs = Q.cityStatus[cityId] ? IB.live.line(esc(Q.cityStatus[cityId]), Q.cityStatus[cityId], Q.nextAt[cityId]) : '';
         return `<div class="city"><h4>${esc(items[0].cityName)}</h4>${rows}${cs}</div>`;
       })
       .join('');
@@ -224,7 +211,7 @@
   liveTick = IB.live.attach(root, () => ({
     paused: IB.isPaused('insaat'),
     passive: Q.passive,
-    running: Q.running,
+    running: Q.items.length > 0,
     status: Q.status,
     current: Q.current ? cityLabel(Q.current) : null,
     items: Q.cityIds().map((id) => ({ label: cityLabel(id), status: Q.cityStatus[id], nextAt: Q.nextAt[id] })),

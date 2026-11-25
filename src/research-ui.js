@@ -53,12 +53,8 @@
     ${IB.live.CSS}
   </style>
   <div class="panel collapsed" id="panel">
-    <div class="head" id="head"><span class="dot" id="dot"></span><b id="title">Araştırma Sırası</b><label class="onoff" id="onoffLbl" title="Kapatınca sadece araştırma botu duraklar; barbar ve inşaat botları çalışmaya devam eder. Hiçbir kayıt silinmez, açınca kaldığı yerden devam eder."><input type="checkbox" id="onoff"> Açık</label><span id="toggle">▲</span></div>${IB.live.HTML}
+    <div class="head" id="head"><span class="dot" id="dot"></span><b id="title">Araştırma Sırası</b><label class="onoff" id="onoffLbl" title="Açıkken bot sürekli çalışır; sorun çıkarsa durmaz, tekrar tekrar dener. Kapatınca sadece araştırma botu durur, diğer botlar çalışmaya devam eder. Hiçbir kayıt silinmez, açınca kaldığı yerden devam eder."><input type="checkbox" id="onoff"> Açık</label><span id="toggle">▲</span></div>${IB.live.HTML}
     <div class="body">
-      <div class="row">
-        <button class="primary" id="start">Başlat</button>
-        <button id="stop">Durdur</button>
-      </div>
       <div class="status" id="status"></div>
       <div class="add">
         <label>Şehir <select id="city"></select></label>
@@ -177,19 +173,12 @@
     render();
   });
 
-  $('start').addEventListener('click', () => {
-    if (!window.confirm('Araştırma sırası başlasın mı? Bot sıradaki araştırmalar için gerçek emir verecek (altın ve kristal harcanır).')) return;
-    R.start();
-    render();
-  });
-  $('stop').addEventListener('click', () => { R.stop(); render(); });
-
-  // Sadece araştırma botunun aç/kapa tiki. Tıklamak paneli açıp kapamasın.
+  // Araştırma botunun tek aç/kapa düğmesi. Tıklamak paneli açıp kapamasın.
   $('onoffLbl').addEventListener('click', (e) => e.stopPropagation());
   $('onoff').addEventListener('change', () => {
     const pause = !$('onoff').checked;
     IB.setPaused('arastirma', pause);
-    R.log(pause ? 'Araştırma botu duraklatıldı; sıra ve kayıtlar korunuyor. Diğer botlar etkilenmez.' : 'Araştırma botu devam ettirildi; kaldığı yerden sürüyor.');
+    R.log(pause ? 'Araştırma botu kapatıldı; sıra ve kayıtlar korunuyor. Diğer botlar etkilenmez.' : 'Araştırma botu açıldı; kaldığı yerden sürüyor.');
     render();
   });
   IB.onPauseChange((bot) => { if (bot === 'arastirma') render(); });
@@ -206,13 +195,11 @@
 
   function render() {
     const passive = R.passive;
-    const err = !R.running && /^Durdu: /.test(R.status);
     const paused = IB.isPaused('arastirma');
+    const err = !paused && Object.keys(R._err).length > 0;
     $('onoff').checked = !paused;
-    $('dot').className = 'dot ' + (paused ? 'pause' : R.running ? 'run' : err ? 'err' : '');
-    $('title').textContent = `Araştırma Sırası (${R.items.length} iş${R.running ? ', çalışıyor' : ''})${paused ? ' · DURAKLATILDI' : ''}`;
-    $('start').disabled = R.running || passive;
-    $('stop').disabled = !R.running || passive;
+    $('dot').className = 'dot ' + (paused ? 'pause' : err ? 'err' : 'run');
+    $('title').textContent = `Araştırma Sırası (${R.items.length} iş)${paused ? ' · KAPALI' : ''}`;
     $('add').disabled = passive;
     $('status').textContent = passive ? 'Başka sekmede çalışıyor. Bu sekme sadece gösterir.' : R.status;
     $('status').classList.toggle('err', err);
@@ -230,7 +217,7 @@
             </div>`
           )
           .join('');
-        const cs = R.running && R.cityStatus[cityId] ? IB.live.line(esc(R.cityStatus[cityId]), R.cityStatus[cityId], R.nextAt[cityId]) : '';
+        const cs = R.cityStatus[cityId] ? IB.live.line(esc(R.cityStatus[cityId]), R.cityStatus[cityId], R.nextAt[cityId]) : '';
         return `<div class="city"><h4>${esc(items[0].cityName)}</h4>${rows}${cs}</div>`;
       })
       .join('');
@@ -262,7 +249,7 @@
   liveTick = IB.live.attach(root, () => ({
     paused: IB.isPaused('arastirma'),
     passive: R.passive,
-    running: R.running,
+    running: R.items.length > 0,
     status: R.status,
     current: R.current ? cityLabel(R.current) : null,
     items: R.cityIds().map((id) => ({ label: cityLabel(id), status: R.cityStatus[id], nextAt: R.nextAt[id] })),

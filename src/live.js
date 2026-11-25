@@ -27,7 +27,7 @@
   // Panel başlığının altındaki tek satır. s: { paused, passive, running, status, current, items: [{ label, status, nextAt }] }
   // current: o an işlenen öğenin etiketi (yoksa null).
   function summary(s) {
-    if (s.paused) return { tone: 'idle', text: 'Duraklatıldı — açınca kaldığı yerden devam eder.' };
+    if (s.paused) return { tone: 'idle', text: 'Kapalı — Açık tikini işaretleyince kaldığı yerden devam eder.' };
     if (s.passive) return { tone: 'idle', text: 'Başka sekmede çalışıyor; bu sekme sadece izliyor.' };
     if (!s.running) return { tone: /^durdu: /i.test(s.status || '') ? 'bad' : 'idle', text: s.status || 'Durdu' };
     if (s.current) return { tone: 'good', text: `Şu an: ${s.current} kontrol ediliyor…` };

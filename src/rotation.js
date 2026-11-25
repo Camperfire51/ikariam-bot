@@ -1,7 +1,9 @@
 // Barbar saldırı botu: aynı anda birden fazla rotasyon.
-// Her rotasyon bir barbar sömürgesinin adasındaki köyü max seviyeye kadar vurur, sonra uyarı verip durur
+// Her rotasyon bir barbar sömürgesinin adasındaki köyü max seviyeye kadar vurur, sonra uyarı verip bekler
 // (sömürge silme/kurma elle yapılır). Tek bir zamanlayıcı, zamanı gelen rotasyonları sırayla çalıştırır;
 // böylece istekler çakışmaz ve her gönderimden önce asker/gemi durumu taze okunur.
+// Başlat/Durdur yok: paneldeki Açık tiki açıkken kaynak şehri ve sömürgesi seçilmiş her rotasyon çalışır.
+// Hiçbir hata botu durdurmaz; sorun günlüğe/bildirime bir kez yazılır ve birkaç dakika sonra tekrar denenir.
 (() => {
   const IB = window.IkaBot;
   const G = IB.game;
@@ -33,14 +35,13 @@
   };
 
   const ST_DEFAULTS = {
-    running: false,
-    status: 'Durdu',
+    status: 'Bekliyor',
     nextAt: null, // ms
     lastAttack: null,
     lastLooted: null,
     nextLevel: null, // sadece bilgi amaçlı; kararlar her seferinde oyundan okunan seviyeyle verilir
     notified: {},
-    stopReason: null,
+    error: null, // son hata (giderilene kadar); aynı hata günlüğe bir kez yazılır
     journey: null,
     shipCapacity: null,
     followUp: null, // son ek sefer: { key: seviye:toparlanma, count, sentAt }
@@ -126,7 +127,71 @@
       }
     }
 
-    // Başlatmadan önce ayarları doğrular.
+    // Kaynak şehir ve sömürge seçilmişse rotasyon etkindir (bot açıkken çalışır).
+    get configured() {
+      return !!(this.cfg.originId && this.cfg.colonyId);
+    }
+
+    // Kullanıcının kartta değiştirebildiği ayarlar; değişince ayarlar yeniden doğrulanır.
+    cfgKey() {
+      const c = this.cfg;
+      return [Number(c.originId), Number(c.colonyId), Number(c.maxLevel), Number(c.leadMin), !!c.autoTrain, !!c.sendSpearmen].join('|');
+    }
+
+    // Ayarlar bu sekmede doğrulandı mı (sayfa açılınca her rotasyon bir kez, oyundan taze okunarak doğrulanır).
+    get ready() {
+      return this.configured && this._prepared === this.cfgKey();
+    }
+
+    // Ayarları doğrular ve rotasyonu çalışmaya hazırlar. Geçersizse hata atar; döngü sonra tekrar dener.
+    async activate() {
+      this.setStatus('Ayarlar doğrulanıyor…');
+      const cfg = await this.prepare(this.cfg);
+      // Kaynak şehir ya da sömürge değiştiyse eski saldırı/eğitim kayıtları bu kuruluma ait değildir.
+      const setupKey = `${cfg.originId}:${cfg.colonyId}`;
+      this.cfg = cfg;
+      if (this.st.setupKey !== setupKey) this.st = { ...clone(ST_DEFAULTS), setupKey, error: this.st.error };
+      // Kaldırılan sömürge kurulumu özelliğinden kalmış olabilecek alanlar.
+      delete this.st.phase;
+      delete this.st.pending;
+      delete this.st.setup;
+      delete this.cfg.colonyAuto;
+      delete this.cfg.autoSetup;
+      // Kaldırılan yükseltmeli/yükseltmesiz ve koçbaşı→mancınık ayarlarından kalmış olabilecek alanlar.
+      delete this.cfg.troopMode;
+      delete this.cfg.resolvedTroopMode;
+      delete this.cfg.catapult;
+      delete this.cfg.sendSwordsmen;
+      this.st.notified = {};
+      this.st.nextAt = 0;
+      this._prepared = this.cfgKey();
+      this.save();
+      this.log(
+        `Etkin: ${cfg.originName} → ${cfg.colonyName}, hedef: ${cfg.targetIslandName}, en fazla seviye ${cfg.maxLevel}; askerler seviye tablosundaki gibi gider.`
+      );
+    }
+
+    // Hata: rotasyon durmaz. Durum satırına yazılır, aynı hata günlüğe ve bildirime bir kez düşer, sonra tekrar denenir.
+    fail(e, waitSec) {
+      const msg = (e && e.message) || String(e);
+      if (this.st.error !== msg) {
+        this.st.error = msg;
+        const serious = e instanceof GameError && (e.kind === 'safety' || e.kind === 'global');
+        this.log(`Hata: ${msg} — ${Math.ceil(waitSec / 60)} dk sonra tekrar denenecek (bot durmuyor).`, serious ? 'error' : 'warn');
+        IB.notify(`Barbar botu: sorun var, tekrar deneniyor (${this.label})`, msg);
+      }
+      this.st.status = `Hata: ${msg} — tekrar denenecek.`;
+      this.save();
+    }
+
+    recovered() {
+      if (!this.st.error) return;
+      this.st.error = null;
+      this.log('Sorun giderildi, devam ediliyor.');
+      this.save();
+    }
+
+    // Ayarları doğrular (bkz. activate).
     async prepare(input) {
       const originId = Number(input.originId);
       const colonyId = Number(input.colonyId);
@@ -138,9 +203,9 @@
       if (!(maxLevel >= 1 && maxLevel <= tableMax))
         throw new GameError(`Seviye 1-${tableMax} arasında olmalı (tabloda 1'den itibaren boşluksuz tanımlı son seviye ${tableMax}).`, 'config');
 
-      // Çakışma sadece çalışan rotasyonlarla aranır; durmuş bir rotasyonun eski ayarı engel olmaz
-      // (o rotasyon tekrar başlatılmak istenirse kontrol onda yapılır).
-      const active = this.others.filter((o) => o.st.running);
+      // Çakışma sadece doğrulanmış (çalışan) rotasyonlarla aranır; önce doğrulanan rotasyon çalışır,
+      // çakışan ikincisi hata gösterip ayarı düzeltilene kadar tekrar dener.
+      const active = this.others.filter((o) => o.ready);
       for (const o of active) {
         if (!o.cfg.colonyId) continue;
         if (Number(o.cfg.colonyId) === colonyId) throw new GameError(`Bu sömürge zaten R${o.id} rotasyonunda kullanılıyor.`, 'config');
@@ -239,59 +304,6 @@
       return weight;
     }
 
-    async start(input) {
-      if (this.st.running) return;
-      this.setStatus('Ayarlar doğrulanıyor…');
-      let cfg;
-      try {
-        cfg = await this.prepare(input);
-      } catch (e) {
-        this.st.status = 'Başlatılamadı: ' + e.message;
-        this.save();
-        this.log('Başlatılamadı: ' + e.message, 'error');
-        throw e;
-      }
-      // Kaynak şehir ya da sömürge değiştiyse eski saldırı/eğitim kayıtları bu kuruluma ait değildir.
-      const setupKey = `${cfg.originId}:${cfg.colonyId}`;
-      this.cfg = cfg;
-      if (this.st.setupKey !== setupKey) this.st = { ...clone(ST_DEFAULTS), setupKey };
-      // Kaldırılan sömürge kurulumu özelliğinden kalmış olabilecek alanlar.
-      delete this.st.phase;
-      delete this.st.pending;
-      delete this.st.setup;
-      delete this.cfg.colonyAuto;
-      delete this.cfg.autoSetup;
-      // Kaldırılan yükseltmeli/yükseltmesiz ve koçbaşı→mancınık ayarlarından kalmış olabilecek alanlar.
-      delete this.cfg.troopMode;
-      delete this.cfg.resolvedTroopMode;
-      delete this.cfg.catapult;
-      delete this.cfg.sendSwordsmen;
-      this.st.running = true;
-      this.st.stopReason = null;
-      this.st.notified = {};
-      this.st.nextAt = 0;
-      this.save();
-      this.log(
-        `Başladı. ${cfg.originName} → ${cfg.colonyName}, hedef: ${cfg.targetIslandName}, en fazla seviye ${cfg.maxLevel}; askerler seviye tablosundaki gibi gider.`
-      );
-      this.mgr.kick();
-    }
-
-    stop(reason, level = 'info') {
-      this.st.running = false;
-      this.st.nextAt = null;
-      this.st.stopReason = reason || null;
-      this.st.status = reason ? 'DURDU: ' + reason : 'Durdu';
-      this.save();
-      if (reason) {
-        this.log('Durduruldu: ' + reason, level);
-        IB.notify(`Barbar botu durdu (${this.label})`, reason);
-      } else {
-        this.log('Durduruldu.');
-      }
-      this.mgr.kick();
-    }
-
     // ---------- Köyün güncel durumu (oyundan) ----------
     // Seviye, yıkık mı, köye giden saldırımız var mı: hepsi oyundan okunur, kayda bakılmaz.
     // next: bir sonraki saldırının vuracağı seviye. Köye giden/savaşan bir saldırımız varsa o seviye
@@ -317,7 +329,8 @@
     async tick(snap, ids) {
       const { cfg, st } = this;
       const now = IB.now();
-      if (!ids.has(Number(cfg.colonyId))) throw new GameError('Barbar sömürgesi şehir listesinde yok.', 'safety');
+      if (!ids.has(Number(cfg.colonyId)))
+        throw new GameError('Barbar sömürgesi şehir listesinde yok (silinmiş olabilir). Yeni sömürge kurduysan kartta onu seç.', 'safety');
 
       // Sömürgede mızrakçı varsa kaynak şehre yolla; yollandıysa sonraki tur taze hareket listesiyle başlasın.
       if ((await this.sendSpearmen()).sent) return 15;
@@ -352,9 +365,12 @@
           );
           this.save();
         } else if (now - la.sentAt < (la.journey || 600)) {
-          throw new GameError('Saldırı gönderildi ama hareket listesinde görünmüyor.', 'safety');
+          throw new GameError('Saldırı gönderildi ama hareket listesinde görünmüyor; tekrar bakılacak.', 'safety');
         } else {
-          throw new GameError(`Seviye ${la.level} saldırısı başarısız görünüyor (köy yıkılmadı).`, 'safety');
+          // Bir kez bildirilir; sonra rotasyon oyundan taze okuyarak devam eder (gerekirse aynı seviyeyi tekrar vurur).
+          la.evaluated = true;
+          this.save();
+          throw new GameError(`Seviye ${la.level} saldırısı başarısız görünüyor (köy yıkılmadı). Seviye tablosundaki askerleri kontrol et; bot tekrar deneyecek.`, 'safety');
         }
       }
 
@@ -366,20 +382,26 @@
         if (wait) return wait;
       }
 
-      // Max seviye ya da tablonun sınırı aşıldıysa uyar ve dur.
+      // Max seviye ya da tablonun sınırı aşıldıysa uyar ve bekle (rotasyon durmaz, ara ara tekrar bakar).
       if (level > limit) {
-        // Durmadan önce sömürgede mızrakçı kalmadığından emin ol (kontrol aralığı beklenmez).
+        // Sömürgede mızrakçı kalmadığından emin ol (kontrol aralığı beklenmez).
         const spear = await this.sendSpearmen(true);
         if (spear.sent) return 15;
         if (spear.left) {
-          this.setStatus(`Max seviye ${limit} tamamlandı; sömürgedeki ${spear.left} mızrakçı yollanmadan durulmayacak, tekrar denenecek.`);
+          this.setStatus(`Max seviye ${limit} tamamlandı; sömürgedeki ${spear.left} mızrakçı yollanamadı, tekrar denenecek.`);
           return 120;
         }
-        this.stop(
-          `Max seviye ${limit} tamamlandı (köy bir sonraki kurulumda seviye ${level} olacak). Sömürgeyi elle sil/yeniden kur, sonra bu rotasyonu yeniden başlat.`,
-          'warn'
-        );
-        return 60;
+        const msg =
+          `Max seviye ${limit} tamamlandı (köy bir sonraki kurulumda seviye ${level} olacak). ` +
+          'Sömürgeyi elle sil/yeniden kurup kartta yeni sömürgeyi seç ya da max seviyeyi yükselt; o zamana kadar ara ara bakılıyor.';
+        if (!st.notified.maxDone) {
+          st.notified.maxDone = true;
+          this.save();
+          this.log(msg, 'warn');
+          IB.notify(`Barbar rotasyonu max seviyede (${this.label})`, msg);
+        }
+        this.setStatus(msg);
+        return MAX_WAIT_SEC;
       }
 
       const units = await G.units(cfg.originId);
@@ -794,8 +816,33 @@
         } catch (e) {}
       }
       data = data || { rotations: [] };
+      this.migrate(data);
       this.rotations = (data.rotations || []).map((r) => new Rotation(r, this)).sort((a, b) => a.id - b.id);
       if (!this.rotations.length) this.add();
+    },
+
+    // Eski sürümde her rotasyon ayrıca Başlat/Durdur ile çalışıyordu; artık Açık tiki ve kartın ayarı yeter.
+    // Kendiliğinden (hata yüzünden) durmuş rotasyonlar çalışıyor sayılır: artık durmadan tekrar denerler.
+    // Elle durdurulmuş olanlar güncellemeyle kendiliğinden saldırmasın diye: hiçbiri çalışmıyorduysa barbar botu
+    // kapalı devralınır; bazıları çalışıyorduysa elle durdurulanların sömürge seçimi boşaltılır (seçince çalışır).
+    migrate(data) {
+      const rots = data.rotations || [];
+      if (!rots.some((r) => r.st && 'running' in r.st)) return;
+      const wanted = (r) => r.st && (r.st.running || r.st.stopReason);
+      const running = rots.some(wanted);
+      IB.migrateRunning('barbar', running, rots.some((r) => r.cfg && r.cfg.originId && r.cfg.colonyId));
+      for (const r of rots) {
+        if (!r.st) continue;
+        if (running && !wanted(r) && r.cfg && r.cfg.colonyId) {
+          r.cfg.colonyId = null;
+          IB.log(`[R${r.id}] Güncelleme: bu rotasyon elle durdurulmuştu; çalışması için kartta barbar sömürgesini yeniden seç.`, 'warn');
+        }
+        delete r.st.running;
+        delete r.st.stopReason;
+      }
+      try {
+        localStorage.setItem(KEY, JSON.stringify(data));
+      } catch (e) {}
     },
 
     save() {
@@ -824,47 +871,15 @@
 
     remove(id) {
       const r = this.get(id);
-      if (!r || r.st.running) return;
+      if (!r) return;
       this.rotations = this.rotations.filter((x) => x !== r);
       IB.log(`[${r.label}] Rotasyon silindi.`);
       this.save();
     },
 
-    get running() {
-      return this.rotations.some((r) => r.st.running);
-    },
-
-    stopAll(reason, level = 'info') {
-      for (const r of this.rotations) {
-        if (!r.st.running) continue;
-        r.st.running = false;
-        r.st.nextAt = null;
-        r.st.stopReason = reason || null;
-        r.st.status = reason ? 'DURDU: ' + reason : 'Durdu';
-      }
-      this.save();
-      lock.release();
-      if (reason) {
-        IB.log('Tüm rotasyonlar durduruldu: ' + reason, level);
-        IB.notify('Ikariam barbar botu durdu', reason);
-      } else {
-        IB.log('Tüm rotasyonlar durduruldu.');
-      }
+    // Kartta ayar değişti: zamanlayıcıyı uyandır (yeni ayar hemen doğrulanır).
+    wake() {
       if (this._wake) this._wake();
-    },
-
-    // Bir rotasyon başlatıldı/durduruldu: zamanlayıcıyı uyandır ya da başlat.
-    kick() {
-      if (!this.running) lock.release();
-      if (this._wake) this._wake();
-      if (this.running) this.loop();
-    },
-
-    resumeIfRunning() {
-      if (this.running) {
-        IB.log('Sayfa yüklendi; çalışan rotasyonlar kaldığı yerden devam ediyor.');
-        this.loop();
-      }
     },
 
     sleep(ms) {
@@ -903,13 +918,13 @@
     },
 
     stockOrigins() {
-      return [...new Set(this.rotations.filter((r) => r.st.running && r.cfg.autoTrain).map((r) => Number(r.cfg.originId)))];
+      return [...new Set(this.rotations.filter((r) => r.ready && r.cfg.autoTrain).map((r) => Number(r.cfg.originId)))];
     },
 
     // Düzenli veri kontrolü: zamanı gelen her kaynak şehrin asker havuzunu kontrol eder.
     async checkStocks() {
       for (const originId of this.stockOrigins()) {
-        if (!this.running) return;
+        if (IB.isPaused('barbar')) return;
         if (Date.now() - (this._stockAt[originId] || 0) < this.stockGap(originId)) continue;
         try {
           await this.ensureStock(originId);
@@ -923,7 +938,7 @@
 
     async ensureStock(originId) {
       originId = Number(originId);
-      const rots = this.rotations.filter((r) => r.st.running && Number(r.cfg.originId) === originId && r.cfg.autoTrain);
+      const rots = this.rotations.filter((r) => r.ready && Number(r.cfg.originId) === originId && r.cfg.autoTrain);
       if (!rots.length) return;
       this._stockAt[originId] = Date.now();
       this._stockGap[originId] = IB.rand(...STOCK_CHECK_MS);
@@ -1105,101 +1120,107 @@
       if (failed.length) say(`Basılamadı: ${failed.join(' / ')}. Tekrar denenecek, bot devam ediyor.${blockedNote} ${parts.join('; ')}.`, 'warn');
     },
 
+    // Döngü hiç bitmez: tik kapalıyken bekler, açıkken ayarlanmış rotasyonları çalıştırır. Hiçbir hata botu
+    // durdurmaz: sorunlu rotasyon hatayı gösterip birkaç dakika sonra tekrar dener, diğerleri etkilenmez.
     async loop() {
       if (this._looping) return;
       this._looping = true;
       let httpFailures = 0;
       const heartbeat = setInterval(() => {
-        if (this.running) lock.refresh();
+        if (!this.passive) lock.refresh();
       }, 30000);
       try {
-        while (this.running) {
-          if (!(await lock.acquire())) {
-            // Başka sekme çalışıyor: kayda yazma (onun güncel verisini ezer), sadece izle.
-            if (!this.passive) {
-              this.passive = true;
+        for (;;) {
+          try {
+            if (!(await lock.acquire())) {
+              // Başka sekme çalışıyor: kayda yazma (onun güncel verisini ezer), sadece izle.
+              if (!this.passive) {
+                this.passive = true;
+                this.reload();
+              }
+              await this.sleep(60000);
+              continue;
+            }
+            if (this.passive) {
+              // Çalışan sekme kapandı, görev bu sekmeye geçti: önce onun bıraktığı güncel durumu yükle.
+              this.passive = false;
               this.reload();
+              IB.log('Bot bu sekmede devam ediyor (önceki sekme kapandı).');
             }
-            await this.sleep(60000);
-            continue;
-          }
-          if (this.passive) {
-            // Çalışan sekme kapandı, görev bu sekmeye geçti: önce onun bıraktığı güncel durumu yükle.
-            this.passive = false;
-            this.reload();
-            IB.log('Bot bu sekmede devam ediyor (önceki sekme kapandı).');
-            if (!this.running) break;
-          }
 
-          // Duraklatıldı: hiçbir şey yapma, devam ettirilene kadar bekle. Zamanı geçen işler devamda hemen yapılır.
-          if (IB.isPaused('barbar')) {
-            await this.sleep(60000);
-            continue;
-          }
+            // Kapalı: hiçbir şey yapma, açılana kadar bekle. Zamanı geçen işler açılınca hemen yapılır.
+            if (IB.isPaused('barbar')) {
+              await this.sleep(60000);
+              continue;
+            }
 
-          const due = this.rotations.filter((r) => r.st.running && (r.st.nextAt || 0) <= Date.now());
-          for (const r of due) {
-            if (!r.st.running) continue;
-            let waitSec = 60;
-            try {
-              this.current = r.id; // panelde "şu an" satırı için
-              emit();
-              // Önceki rotasyon işlem yapmış olabilir: her rotasyon taze durumla çalışır.
-              const snap = await G.snapshot(r.cfg.originId);
-              const ids = this.globalChecks(snap);
-              waitSec = await r.tick(snap, ids);
-              // Saldırı gönderildi ya da asker eksik: bu kaynak şehrin havuzunu beklemeden kontrol et.
-              if (r.needStockCheck) {
-                r.needStockCheck = false;
-                this._stockAt[Number(r.cfg.originId)] = 0;
-              }
-              httpFailures = 0;
-            } catch (e) {
-              if (e instanceof GameError && e.kind === 'paused') {
-                // İş yarıda kesildi: kayıt değiştirilmez, devam ettirilince bu rotasyon oyundan taze okunarak yeniden çalışır.
-                break;
-              } else if (e instanceof GameError && e.kind === 'http' && ++httpFailures <= 15) {
-                // Bağlantı hatalarında ~1 saat boyunca, giderek seyrekleşen aralıklarla tekrar dene.
-                waitSec = Math.min(300, 30 * httpFailures);
-                IB.log(`Bağlantı hatası (${httpFailures}/15), ${waitSec} sn sonra tekrar denenecek: ${e.message}`, 'warn');
-              } else if (e instanceof GameError && (e.kind === 'global' || e.kind === 'session' || e.kind === 'http')) {
-                this.stopAll(e.message, 'error');
-                break;
-              } else {
-                // Sadece bu rotasyona ait sorun: diğerleri devam eder.
+            const due = this.rotations.filter((r) => r.configured && (r.st.nextAt || 0) <= Date.now());
+            for (const r of due) {
+              if (IB.isPaused('barbar')) break;
+              if (!this.rotations.includes(r) || !r.configured) continue; // bu arada silindi ya da ayarı boşaltıldı
+              let waitSec = 60;
+              try {
+                this.current = r.id; // panelde "şu an" satırı için
+                emit();
+                // Yeni ya da değişmiş ayar (ve sayfa açılışı): önce oyundan taze okunarak doğrulanır.
+                if (!r.ready) await r.activate();
+                // Önceki rotasyon işlem yapmış olabilir: her rotasyon taze durumla çalışır.
+                const snap = await G.snapshot(r.cfg.originId);
+                const ids = this.globalChecks(snap);
+                waitSec = await r.tick(snap, ids);
+                // Saldırı gönderildi ya da asker eksik: bu kaynak şehrin havuzunu beklemeden kontrol et.
+                if (r.needStockCheck) {
+                  r.needStockCheck = false;
+                  this._stockAt[Number(r.cfg.originId)] = 0;
+                }
+                httpFailures = 0;
+                r.recovered();
+              } catch (e) {
+                // Tik kapatılınca iş yarıda kesildi: kayıt değiştirilmez, açılınca bu rotasyon oyundan taze okunarak yeniden çalışır.
+                if (e instanceof GameError && e.kind === 'paused') break;
                 if (!(e instanceof GameError)) console.error(e);
-                r.stop(e.message || String(e), 'error');
-                continue;
+                if (e instanceof GameError && e.kind === 'http') httpFailures++;
+                // Düşman hareketi: o geçene kadar 3 dk'da bir bakılır, bu arada hiçbir şey gönderilmez.
+                waitSec = e instanceof GameError && e.kind === 'global' ? 180 : IB.retryWait(e, httpFailures);
+                r.fail(e, waitSec);
+                // Bağlantı/oturum sorunu bütün rotasyonları etkiler: hepsi aynı süre bekleyip tekrar dener.
+                if (e instanceof GameError && (e.kind === 'http' || e.kind === 'session')) {
+                  for (const o of this.rotations) if (o.configured) o.st.nextAt = Math.max(o.st.nextAt || 0, Date.now() + waitSec * 1000);
+                  this.save();
+                  break;
+                }
               }
+              if (!this.rotations.includes(r)) continue;
+              waitSec = Math.min(MAX_WAIT_SEC, Math.max(10, Number(waitSec) || 60));
+              // Uzun beklemeler rastgele en fazla 1 dk kısaltılır (asla uzatılmaz; gönderim anı kaçmasın).
+              if (waitSec > 90) waitSec -= Math.random() * Math.min(60, waitSec * 0.15);
+              r.st.nextAt = Date.now() + waitSec * 1000;
+              this.save();
             }
-            if (!r.st.running) continue;
-            waitSec = Math.min(MAX_WAIT_SEC, Math.max(10, Number(waitSec) || 60));
-            // Uzun beklemeler rastgele en fazla 1 dk kısaltılır (asla uzatılmaz; gönderim anı kaçmasın).
-            if (waitSec > 90) waitSec -= Math.random() * Math.min(60, waitSec * 0.15);
-            r.st.nextAt = Date.now() + waitSec * 1000;
-            this.save();
+
+            this.current = 'stock';
+            emit();
+            await this.checkStocks();
+            this.current = null;
+            emit();
+
+            const nexts = this.rotations.filter((r) => r.configured).map((r) => r.st.nextAt || 0);
+            for (const o of this.stockOrigins()) nexts.push((this._stockAt[o] || 0) + this.stockGap(o));
+            const waitMs = nexts.length ? Math.min(MAX_WAIT_SEC * 1000, Math.max(1000, Math.min(...nexts) - Date.now())) : 60000;
+            await this.sleep(waitMs);
+          } catch (e) {
+            // Beklenmeyen hata döngüyü bitirmesin: günlüğe yaz, biraz bekle, devam et.
+            console.error(e);
+            this.current = null;
+            IB.log(`Beklenmeyen hata: ${(e && e.message) || e}. 1 dk sonra devam edilecek.`, 'warn');
+            await IB.sleep(60000);
           }
-          if (!this.running) break;
-
-          this.current = 'stock';
-
-          emit();
-
-          await this.checkStocks();
-
-          this.current = null;
-          if (!this.running) break;
-
-          const nexts = this.rotations.filter((r) => r.st.running).map((r) => r.st.nextAt || 0);
-          for (const o of this.stockOrigins()) nexts.push((this._stockAt[o] || 0) + this.stockGap(o));
-          const waitMs = Math.min(MAX_WAIT_SEC * 1000, Math.max(1000, Math.min(...nexts) - Date.now()));
-          await this.sleep(waitMs);
         }
       } finally {
         clearInterval(heartbeat);
         this._looping = false;
         this.current = null;
-        if (!this.running) lock.release();
+        lock.release();
       }
     },
   });
